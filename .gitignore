@@ -1,0 +1,12 @@
+/target
+./tmp
+.aider*
+flake.nix
+flake.lock
+.env
+.direnv
+.cache
+.archive
+llama.log
+todos.md
+main.log

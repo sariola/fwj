@@ -1,0 +1,3 @@
+tasks:
+  - data: ./data/subquery-data.json
+    rubric_template: ./rubrics/subquery-decomp.jinja
