@@ -43,68 +43,20 @@
           pkgs.jq
           pkgs.uv
         ];
-
-        supportedTargets = [
-          "x86_64-unknown-linux-musl"
-        ];
-
-        buildTargets = {
-          "x86_64-linux" = {
-            crossSystemConfig = "x86_64-unknown-linux-gnu";
-            rustTarget = "x86_64-unknown-linux-gnu";
-          };
-
-          "i686-linux" = {
-            crossSystemConfig = "i686-unknown-linux-musl";
-            rustTarget = "i686-unknown-linux-musl";
-          };
-
-          "aarch64-linux" = {
-            crossSystemConfig = "aarch64-unknown-linux-musl";
-            rustTarget = "aarch64-unknown-linux-musl";
-          };
-
-          "armv6l-linux" = {
-            crossSystemConfig = "armv6l-unknown-linux-musleabihf";
-            rustTarget = "arm-unknown-linux-musleabihf";
-          };
-
-          "x86_64-windows" = {
-            crossSystemConfig = "x86_64-w64-mingw32";
-            rustTarget = "x86_64-pc-windows-gnu";
-            makeBuildPackageAttrs = pkgsCross: {
-              depsBuildBuild = [
-                pkgsCross.stdenv.cc
-                pkgsCross.windows.pthreads
-              ];
-            };
-          };
-        };
-
         toolchain = with fenix.packages.${system};
-          combine ([
-              (
-                if pkgs.stdenv.hostPlatform.config == buildTargets.${system}.crossSystemConfig
-                then complete.toolchain
-                else minimal.toolchain
-              )
-            ]
-            ++ (
-              builtins.map
-              (target: targets.${target}.latest.rust-std)
-              (builtins.attrValues (builtins.mapAttrs (name: value: value.rustTarget) buildTargets))
-            ));
-
-        buildInputs = with pkgs; [
-          openssl
-          util-linux
-          glibc
-          libcxx
-        ];
-
-        nativeBuildInputs = with pkgs; [
-          pkg-config
-        ];
+          combine [
+            complete.cargo
+            complete.rustc
+            complete.clippy-preview
+            complete.llvm-tools-preview
+            complete.rust-analyzer-preview
+            complete.rustfmt-preview
+            complete.miri-preview
+            targets."aarch64-unknown-linux-gnu".latest.rust-std
+            targets."aarch64-unknown-linux-musl".latest.rust-std
+            targets."x86_64-unknown-linux-gnu".latest.rust-std
+            targets."x86_64-unknown-linux-musl".latest.rust-std
+          ];
 
         kernel = pkgs.linux_6_10.override {
           argsOverride = rec {
@@ -130,7 +82,6 @@
           kernel = kernel;
         };
         nvidia-p2p = nvidia-x11.p2p;
-        rustDeps = [pkgs.cargo pkgs.rustc pkgs.rustfmt pkgs.pre-commit pkgs.rustPackages.clippy];
         cudaDeps = with pkgs; [
           autoconf
           cmake # for triton build from src
@@ -138,7 +89,7 @@
           curl
           file
           freeglut
-          gcc11
+          gcc
           git
           gitRepo
           gnumake
@@ -149,8 +100,6 @@
           libGLU
           libselinux
           libxml2
-          lld_19
-          llvm_18 # for triton build from src
           m4
           ncurses5
           nvidia-p2p
@@ -195,7 +144,7 @@
           pkgs.zstd
           procps
           stdenv.cc
-          gcc11
+          gcc
           unzip
           util-linux
           wget
@@ -210,36 +159,46 @@
           xorg.libXv
           binutils
           zlib
+
+          # rust deps
+          zig
+          toolchain
+          glib
+          glibc
+          gcc
+          pkg-config
+          clang
+          llvmPackages_19.bintools
+          llvmPackages_19.stdenv
+          lld_19
+          llvm_18 # for triton build from src
+          libiconv
+          openssl
+          openssl.dev
+          util-linux
+          libcxx
         ];
         NIX_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath cudaDeps;
       in {
         _module.args = {inherit pkgs;};
         legacyPackages = pkgs;
-        packages.default =
-          (
-            naersk.lib.${system}.override {
-              cargo = toolchain;
-              rustc = toolchain;
-            }
-          )
-          .buildPackage {
-            src = ./.;
-            LD_LIBRARY_PATH = NIX_LD_LIBRARY_PATH;
-            CARGO_BUILD_TARGET = buildTargets.${system}.rustTarget;
-            CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
-            CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER = "${pkgs.gcc11}/bin/gcc";
-          };
-
         devShells = {
-          default = (pkgs.mkShell.override {stdenv = pkgs.gcc11Stdenv;}) {
+          default = (pkgs.mkShell.override {stdenv = pkgs.gccStdenv;}) {
             name = "fwj-env";
-            buildInputs = [
-              pkgs.python311Packages.virtualenv
-              pkgs.python311Packages.venvShellHook
-            ];
-            packages = defaultDeps ++ cudaDeps ++ rustDeps;
-            RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
+            buildInputs =
+              [
+                pkgs.python311Packages.virtualenv
+                pkgs.python311Packages.venvShellHook
+                pkgs.pkg-config # Add pkg-config to buildInputs
+                pkgs.openssl # Add OpenSSL explicitly
+                pkgs.libiconv
+                pkgs.openssl.dev
+              ]
+              ++ defaultDeps
+              ++ cudaDeps;
+            packages = defaultDeps ++ cudaDeps;
             NIX_LD_LIBRARY_PATH = NIX_LD_LIBRARY_PATH;
+            LD_LIBRARY_PATH = NIX_LD_LIBRARY_PATH;
             HF_HOME = "/shelf/hf_home";
             HF_TOKEN = builtins.getEnv "HF_TOKEN";
             NVCC_APPEND_FLAGS = "-L${pkgs.cudaPackages_12_1.cuda_cudart.static}/lib";
@@ -249,6 +208,11 @@
             CUDA_PATH = "${pkgs.cudaPackages_12_1.cudatoolkit}";
             TORCH_USE_CUDA_DSA = "1";
             CUDA_VISIBLE_DEVICES = "0,1,2";
+
+            # Add pkg-config related environment variables
+            PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" (defaultDeps ++ cudaDeps);
+            PKG_CONFIG_SYSROOT_DIR = "/";
+
             shellHook = ''
               set -eu
               export LD_LIBRARY_PATH=$NIX_LD_LIBRARY_PATH
@@ -257,6 +221,11 @@
               export CUDA_PATH="${pkgs.cudaPackages_12_1.cudatoolkit}"
               export HF_HOME="/shelf/hf_home"
               export OMP_NUM_THREADS=32
+
+              # Set up pkg-config wrapper for cross-compilation
+              export PKG_CONFIG="${pkgs.pkg-config}/bin/pkg-config"
+              export PKG_CONFIG_PATH="$PKG_CONFIG_PATH"
+              export PKG_CONFIG_SYSROOT_DIR="$PKG_CONFIG_SYSROOT_DIR"
             '';
           };
         };
