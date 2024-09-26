@@ -8,7 +8,7 @@ mod download;
 mod cli;
 
 use models::{AppError, Config, TaskConfig, IoItem};
-use models::{FILE_LOCKS, SCORE_REGEX, RUBRICS_DIR, MAX_RETRIES, CACHE_DIR};
+use models::{FILE_LOCKS, SCORE_REGEX, RUBRICS_DIR, MAX_RETRIES};
 use models::{DATA_URL, RUBRIC_URL, DATA_DIR};
 use std::path::Path;
 
@@ -39,6 +39,11 @@ use csv::{WriterBuilder, ReaderBuilder};
 use std::io::{Read, Write, BufReader, BufWriter};
 use std::str::from_utf8;
 use serde::{Serialize, Deserialize};
+use std::env::args;
+use crate::cli::Args;
+use clap_complete::{generate, shells::Bash, shells::Fish, shells::Zsh, shells::Elvish, shells::PowerShell};
+use std::io;
+use clap::CommandFactory;
 
 impl Config {
     pub fn from_file(path: &str) -> Result<Self, AppError> {
@@ -75,6 +80,42 @@ fn display_last_result(result: &str) {
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
     let args = cli::parse_args();
+
+    if let Some(cli::Commands::GenAutoCompletions { shell, output }) = args.command {
+        let mut cmd = cli::Args::command();
+        let mut buf = Vec::new();
+
+        match shell {
+            cli::Shell::Fish => {
+                generate(clap_complete::shells::Fish, &mut cmd, "fwj", &mut buf);
+            }
+            cli::Shell::Bash => {
+                generate(clap_complete::shells::Bash, &mut cmd, "fwj", &mut buf);
+            }
+            cli::Shell::Zsh => {
+                generate(clap_complete::shells::Zsh, &mut cmd, "fwj", &mut buf);
+            }
+            cli::Shell::Elvish => {
+                generate(clap_complete::shells::Elvish, &mut cmd, "fwj", &mut buf);
+            }
+            cli::Shell::PowerShell => {
+                generate(clap_complete::shells::PowerShell, &mut cmd, "fwj", &mut buf);
+            }
+        }
+
+        if let Some(path) = output {
+            File::create(&path)
+                .map_err(|e| AppError::FileWriteError(format!("Failed to create file '{}': {}", path, e)))?
+                .write_all(&buf)
+                .map_err(|e| AppError::FileWriteError(format!("Failed to write to file '{}': {}", path, e)))?;
+            println!("Completions written to {}", path);
+        } else {
+            io::stdout().write_all(&buf)
+                .map_err(|e| AppError::FileWriteError(format!("Failed to write to stdout: {}", e)))?;
+        }
+
+        return Ok(());
+    }
 
     // Check if both verbose and log-level are specified
     if args.verbose && args.log_level != log::LevelFilter::Info {
@@ -155,7 +196,7 @@ async fn main() -> Result<(), AppError> {
     info!("Starting task processing");
     for task_config in &config.tasks {
         info!("Processing task with rubric: {}", task_config.rubric_template);
-        match process_task(task_config, args.batch_size).await {
+        match process_task(task_config, &config, args.batch_size, &args).await {
             Ok((failures, result)) => {
                 info!("Task with rubric '{}' processed successfully", task_config.rubric_template);
                 parsing_failures += failures;
@@ -190,7 +231,7 @@ async fn main() -> Result<(), AppError> {
     Ok(())
 }
 
-async fn process_task(task_config: &TaskConfig, batch_size: usize) -> Result<(u32, String), AppError> {
+async fn process_task(task_config: &TaskConfig, config: &Config, batch_size: usize, args: &Args) -> Result<(u32, String), AppError> {
     let data = fs::read_to_string(&task_config.data).await?;
 
     if data.trim().is_empty() {
@@ -290,7 +331,7 @@ async fn process_task(task_config: &TaskConfig, batch_size: usize) -> Result<(u3
                 let populated_template = populate_template(&rubric_clone, &context)?;
 
                 // Execute llamafile with the populated template
-                let llamafile_output = execute_llamafile_with_retries(&populated_template, MAX_RETRIES, CACHE_DIR).await?;
+                let llamafile_output = execute_llamafile_with_retries(&populated_template, MAX_RETRIES, &config.cache_dir, args).await?;
 
                 // Log the llamafile output for debugging
                 debug!("Llamafile output for item {}: {}", index + 1, llamafile_output);
@@ -429,6 +470,7 @@ pub async fn execute_llamafile_with_retries(
     input: &str,
     max_retries: u32,
     cache_dir: &str,
+    args: &Args,
 ) -> Result<String, AppError> {
     fs::create_dir_all(cache_dir).await?;
 
@@ -440,17 +482,36 @@ pub async fn execute_llamafile_with_retries(
     debug!("Llamafile permissions: {:o}", metadata.permissions().mode());
     debug!("Llamafile full path: {:?}", llamafile_path);
 
+    let thread_count = args.thread_count.unwrap_or_else(|| thread::available_parallelism().map(|p| p.get()).unwrap_or(1));
+
+    let mut llamafile_command = format!(
+        "{} -c {} -ngl {} {} --temp {} -n {} -t {} -p \"{}\"",
+        llamafile_path.display(),
+        args.context_size,
+        args.gpu_layers,
+        if args.enable_kv_offload { "" } else { "-nkvo" },
+        args.temperature,
+        args.max_tokens,
+        thread_count,
+        input
+    );
+
+    // Add additional llamafile arguments
+    if let Some(extra_args) = &args.llamafile_kvargs {
+        validate_llamafile_kvargs(&llamafile_path, extra_args).await?;
+        for arg_pair in extra_args.split(',') {
+            if let Some((key, value)) = arg_pair.split_once('=') {
+                llamafile_command.push_str(&format!(" --{} {}", key, value));
+            }
+        }
+    }
+
     for attempt in 1..=max_retries {
         debug!("Executing llamafile, attempt {}/{}", attempt, max_retries);
 
         let output = if cfg!(target_os = "windows") {
             tokio::process::Command::new("cmd")
-                .args(&["/C", &format!(
-                    "{} -c 8192 -ngl 32 --temp 0.1 -n 1000 -t {} -p \"{}\"",
-                    llamafile_path.display(),
-                    thread::available_parallelism().map(|p| p.get()).unwrap_or(1),
-                    input
-                )])
+                .args(&["/C", &llamafile_command])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .output()
@@ -458,12 +519,7 @@ pub async fn execute_llamafile_with_retries(
         } else {
             tokio::process::Command::new("sh")
                 .arg("-c")
-                .arg(format!(
-                    "{} -c 8192 -ngl 32 --temp 0.1 -n 1000 -t {} -p \"{}\"",
-                    llamafile_path.display(),
-                    thread::available_parallelism().map(|p| p.get()).unwrap_or(1),
-                    input
-                ))
+                .arg(&llamafile_command)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .output()
@@ -631,4 +687,24 @@ fn ensure_utf8(s: &str) -> Result<String, AppError> {
     from_utf8(s.as_bytes())
         .map(|s| s.to_string())
         .map_err(|e| AppError::EncodingError(format!("Invalid UTF-8 sequence: {}", e)))
+}
+
+async fn validate_llamafile_kvargs(llamafile_path: &Path, args: &str) -> Result<(), AppError> {
+    let output = tokio::process::Command::new(llamafile_path)
+        .arg("--help")
+        .output()
+        .await
+        .map_err(|e| AppError::CommandExecutionError(format!("Failed to execute llamafile: {}", e)))?;
+
+    let help_text = String::from_utf8_lossy(&output.stdout);
+
+    for arg_pair in args.split(',') {
+        if let Some((key, _)) = arg_pair.split_once('=') {
+            if !help_text.contains(&format!("--{}", key)) {
+                return Err(AppError::ConfigError(format!("Invalid llamafile argument: --{}", key)));
+            }
+        }
+    }
+
+    Ok(())
 }

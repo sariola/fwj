@@ -7,13 +7,27 @@ build-release-static:
 
 # Build release binary for macOS (x86_64)
 build-release-static-macos:
-    docker run --rm -it -v $(pwd):/io -w /io -e RUSTFLAGS="-C target-feature=+crt-static" messense/cargo-zigbuild \
+    docker run --rm -it -v $(pwd):/io -w /io \
+    -e RUSTFLAGS="-C target-feature=+crt-static" \
+    -e LANG=en_US.UTF-8 \
+    -e LC_ALL=en_US.UTF-8 \
+    -e RUST_BACKTRACE=1 \
+    -e RUST_LOG=debug \
+    -e CARGO_TERM_COLOR=always \
+    messense/cargo-zigbuild \
     cargo zigbuild --release --target x86_64-apple-darwin
     sudo chown -R $USER:$(id -gn $USER) target/x86_64-apple-darwin
 
 # Build release binary for macOS (universal2)
 build-release-static-macos-universal2:
-    docker run --rm -it -v $(pwd):/io -e RUSTFLAGS="-C target-feature=+crt-static" -w /io messense/cargo-zigbuild \
+    docker run --rm -it -v $(pwd):/io -w /io \
+    -e RUSTFLAGS="-C target-feature=+crt-static" \
+    -e LANG=en_US.UTF-8 \
+    -e LC_ALL=en_US.UTF-8 \
+    -e RUST_BACKTRACE=1 \
+    -e RUST_LOG=debug \
+    -e CARGO_TERM_COLOR=always \
+    messense/cargo-zigbuild \
     cargo zigbuild --release --target universal2-apple-darwin
     sudo chown -R $USER:$(id -gn $USER) target/universal2-apple-darwin
     sudo chown -R $USER:$(id -gn $USER) target/aarch64-apple-darwin

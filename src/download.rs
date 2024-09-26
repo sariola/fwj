@@ -14,29 +14,27 @@ use tokio::io::{AsyncSeekExt, AsyncReadExt};
 use log::{error, debug, info};
 use tokio::fs;
 use sha2::{Sha256, Digest};
+use std::path::PathBuf;
 
 use crate::models::LLAMAFILE_LOCK_URL;
 
 pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppError> {
     println!("\n{}", style("Checking Flow-Judge-v0.1 llamafile"));
 
-    let file_path = ".cache/flow-judge.llamafile";
-    let lock_file_path = ".cache/flow-judge.llamafile.lock";
+    let file_path = PathBuf::from(&config.cache_dir).join("flow-judge.llamafile");
+    let lock_file_path = PathBuf::from(&config.cache_dir).join("flow-judge.llamafile.lock");
 
     // Create the .cache directory if it doesn't exist
-    tokio::fs::create_dir_all(".cache").await?;
+    tokio::fs::create_dir_all(&config.cache_dir).await?;
 
     // Fetch and save the lock file
-    fetch_and_save_lock_file(&config.llamafile_url, lock_file_path).await?;
-
-    // Extract hash from the URL
-    let expected_hash = "4845b598e88dbae320d2773edc15b52e054a53dd3a64b069121c33c3806c2dec";
+    fetch_and_save_lock_file(&config.llamafile_url, &lock_file_path).await?;
 
     // Check if file exists and verify
-    if let Ok(_metadata) = tokio::fs::metadata(file_path).await {
+    if let Ok(_metadata) = tokio::fs::metadata(&file_path).await {
         println!("Existing llamafile found. Verifying...");
 
-        if verify_file(file_path, lock_file_path, expected_hash).await? {
+        if verify_file(&file_path, &lock_file_path).await? {
             println!("{}", style("Verification passed. Using existing llamafile."));
             return Ok(());
         } else {
@@ -45,15 +43,15 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
     }
 
     println!(
-        "\n{}",
-        style("Downloading Flow-Judge-v0.1 quantized to Q4_K_M and converted to llamafile format")
+        "{}",
+        style("Downloading Flow-Judge-v0.1 quantized to Q4_K_M and converted to llamafile format..")
             .green()
             .bold()
     );
-    println!("\n{}", style("File details:").magenta());
+    println!("\n{}", style("File details:").yellow());
     println!("  Name: {}", style("flow-judge.llamafile").green());
     println!("  Size: {}", style("2.4 GB").green());
-    println!("  URL: {}", style(&config.llamafile_url).yellow());
+    println!("  URL: {}", style(&config.llamafile_url).green());
     println!("  Date added to hub: {}", style("25.09.2024").green());
     println!("  SHA256: {}", style("4845b598e88dbae320d2773edc15b52e054a53dd3a64b069121c33c3806c2dec").green());
     println!("  Llamafile version: {}\n", style("v0.8.13").green());
@@ -64,9 +62,19 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
     let total_size: u64 = 2_404_988_741;
     let pb = ProgressBar::new(total_size);
     pb.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+        .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({percent}%) {eta}")
         .unwrap()
+        .with_key("elapsed_precise", |state: &indicatif::ProgressState, w: &mut dyn std::fmt::Write| {
+            write!(w, "{:02}:{:02}:{:03}",
+                state.elapsed().as_secs() / 60,
+                state.elapsed().as_secs() % 60,
+                state.elapsed().subsec_millis()
+            ).unwrap();
+        })
         .progress_chars("━━╾─"));
+
+    // Enable steady tick for the progress bar
+    pb.enable_steady_tick(std::time::Duration::from_millis(100));
 
     // Ensure the progress bar starts at 0
     pb.set_position(0);
@@ -74,32 +82,24 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
     // Start the download
     let start = Instant::now();
     let mut response = client.get(&llamafile_url).send().await?;
-    let mut file = tokio::fs::File::create(file_path).await?;
+    let mut file = tokio::fs::File::create(file_path.to_str().unwrap()).await?;
     let mut downloaded: u64 = 0;
 
     while let Some(chunk) = response.chunk().await? {
         file.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
         pb.set_position(downloaded);
-
-        // Update ETA
-        if downloaded > 0 {
-            let elapsed = start.elapsed().as_secs_f64();
-            let rate = downloaded as f64 / elapsed;
-            let remaining = (total_size - downloaded) as f64 / rate;
-            pb.set_message(format!("ETA: {:.0}s", remaining));
-        }
     }
 
     pb.finish_with_message("Download completed");
 
     // Set executable permissions
-    let mut perms = tokio::fs::metadata(file_path).await?.permissions();
+    let mut perms = tokio::fs::metadata(file_path.to_str().unwrap()).await?.permissions();
     perms.set_mode(0o755);
-    tokio::fs::set_permissions(file_path, perms).await?;
+    tokio::fs::set_permissions(file_path.to_str().unwrap(), perms).await?;
 
     // After successful download
-    set_download_complete_flag(file_path).await?;
+    set_download_complete_flag(file_path.to_str().unwrap()).await?;
 
     println!(
         "\n\n{}",
@@ -107,11 +107,11 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
             .green()
             .bold()
     );
-    println!("Placed into: {}\n", style(file_path).yellow());
+    println!("Placed into: {}\n", style(file_path.to_str().unwrap()).yellow());
     Ok(())
 }
 
-async fn fetch_and_save_lock_file(_url: &str, lock_file_path: &str) -> Result<(), AppError> {
+async fn fetch_and_save_lock_file(_url: &str, lock_file_path: &PathBuf) -> Result<(), AppError> {
     let client = Client::new();
     let response = client.get(LLAMAFILE_LOCK_URL).send().await?.text().await?;
 
@@ -144,7 +144,7 @@ async fn set_download_complete_flag(file_path: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-async fn verify_file(file_path: &str, lock_file_path: &str, expected_hash: &str) -> Result<bool, AppError> {
+async fn verify_file(file_path: &PathBuf, lock_file_path: &PathBuf) -> Result<bool, AppError> {
     info!("Starting verification process");
 
     let lock_content = tokio::fs::read_to_string(lock_file_path).await
@@ -160,15 +160,14 @@ async fn verify_file(file_path: &str, lock_file_path: &str, expected_hash: &str)
 
     info!("Lock file content: {}", lock_content);
 
-    let lock_file_hash = lock_content.lines()
+    let expected_hash = lock_content.lines()
         .find(|line| line.starts_with("oid sha256:"))
         .and_then(|line| line.split(':').nth(1))
         .ok_or_else(|| AppError::ParseError("Failed to parse hash from lock file".to_string()))?;
 
-    info!("Lock file hash: {}", lock_file_hash);
-    info!("Expected hash from URL: {}", expected_hash);
+    info!("Expected hash from lock file: {}", expected_hash);
 
-    if lock_file_hash != expected_hash {
+    if expected_hash != expected_hash {
         info!("Hash mismatch between lock file and URL");
         return Ok(false);
     }

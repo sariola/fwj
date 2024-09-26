@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use tokio::sync::Mutex;
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::path::PathBuf;
+use dirs;
 
 // Constants
 pub const LLAMAFILE_URL: &str =
@@ -12,7 +14,6 @@ pub const LLAMAFILE_LOCK_URL: &str =
 pub const MAX_RETRIES: u32 = 3;
 pub const SCORE_REGEX_PATTERN: &str = r"<score>\s*(\d+)\s*</score>";
 pub const FEEDBACK_REGEX_PATTERN: &str = r"(?s)<feedback>(.+?)</feedback>";
-pub const CACHE_DIR: &str = "./.cache";
 pub const RUBRICS_DIR: &str = "./rubrics";
 pub const DATA_DIR: &str = "./data";
 pub const DATA_URL: &str = "https://raw.githubusercontent.com/sariola/fwj/refs/heads/main/data/subquery-data.json";
@@ -89,7 +90,23 @@ pub struct Config {
 
 pub fn default_llamafile_url() -> String { LLAMAFILE_URL.to_string() }
 pub fn default_max_retries() -> u32 { MAX_RETRIES }
-pub fn default_cache_dir() -> String { CACHE_DIR.to_string() }
+pub fn default_cache_dir() -> String {
+    dirs::cache_dir()
+        .map(|cache| cache.join("fwj"))
+        .unwrap_or_else(|| {
+            if cfg!(windows) {
+                std::env::var("LOCALAPPDATA")
+                    .map(|appdata| PathBuf::from(appdata).join("cache").join("fwj"))
+                    .unwrap_or_else(|_| PathBuf::from(".fwj"))
+            } else {
+                std::env::var("HOME")
+                    .map(|home| PathBuf::from(home).join(".cache").join("fwj"))
+                    .unwrap_or_else(|_| PathBuf::from(".fwj"))
+            }
+        })
+        .to_string_lossy()
+        .into_owned()
+}
 pub fn default_rubrics_dir() -> String { RUBRICS_DIR.to_string() }
 pub fn default_data_dir() -> String { DATA_DIR.to_string() }
 
