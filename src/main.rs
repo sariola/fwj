@@ -9,8 +9,10 @@ mod cli;
 
 use models::{AppError, Config, TaskConfig};
 use models::{FILE_LOCKS, SCORE_REGEX, RUBRICS_DIR, MAX_RETRIES, CACHE_DIR};
+use models::{DATA_URL, RUBRIC_URL, DATA_DIR};
+use std::path::Path;
 
-use download::download_flow_judge_llamafile;
+use crate::download::{download_flow_judge_llamafile, download_file};
 
 use log::{debug, error, info, warn};
 use minijinja::{context, Environment};
@@ -62,11 +64,6 @@ fn display_last_result(result: &str) {
 async fn main() -> Result<(), AppError> {
     let args = cli::parse_args();
 
-    // temporary
-    include_str!("../rubrics/subquery-decomp.jinja");
-    include_str!("../data/subquery-data.json");
-
-
     // Check if both verbose and log-level are specified
     if args.verbose && args.log_level != log::LevelFilter::Info {
         return Err(AppError::ConfigError(
@@ -102,14 +99,33 @@ async fn main() -> Result<(), AppError> {
         info!("No config file found at {}", args.config);
     }
 
-    // Override config with CLI args if provided
-    if !args.rubric.is_empty() || !args.data.is_empty() {
-        info!("CLI arguments provided, overriding config");
-        config.tasks = vec![models::TaskConfig {
-            data: args.data.clone(),
-            rubric_template: if !args.rubric.is_empty() { args.rubric.clone() } else { config.rubrics_dir.clone() },
-        }];
-    }
+    // Handle data file
+    let data_path = if args.data == "fetch" {
+        let path = format!("{}/subquery-data.json", config.data_dir);
+        if !Path::new(&path).exists() {
+            download_file(DATA_URL, &path).await?;
+        }
+        path
+    } else {
+        args.data.clone()
+    };
+
+    // Handle rubric file
+    let rubric_path = if args.rubric == "fetch" {
+        let path = format!("{}/subquery-decomp.jinja", config.rubrics_dir);
+        if !Path::new(&path).exists() {
+            download_file(RUBRIC_URL, &path).await?;
+        }
+        path
+    } else {
+        args.rubric.clone()
+    };
+
+    // Update the config with the correct paths
+    config.tasks = vec![models::TaskConfig {
+        data: data_path,
+        rubric_template: rubric_path,
+    }];
 
     // Ensure we have tasks to process
     if config.tasks.is_empty() {

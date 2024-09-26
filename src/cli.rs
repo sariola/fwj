@@ -5,8 +5,8 @@ use log::LevelFilter;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-    /// Path to the data file
-    #[arg(short, long, default_value = "./data/subquery-data.json")]
+    /// Path to the data file or "fetch" to download
+    #[arg(short, long, default_value = "fetch")]
     pub data: String,
 
     /// Optional config file path
@@ -21,8 +21,8 @@ pub struct Args {
     #[arg(short, long, default_value = "error")]
     pub log_level: LevelFilter,
 
-    /// Path to the rubric Jinja template
-    #[arg(short, long, default_value = "./rubrics/subquery-decomp.jinja")]
+    /// Path to the rubric Jinja template or "fetch" to download
+    #[arg(short, long, default_value = "fetch")]
     pub rubric: String,
 
     /// Display the last result

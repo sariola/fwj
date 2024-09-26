@@ -15,6 +15,8 @@ pub const FEEDBACK_REGEX_PATTERN: &str = r"(?s)<feedback>(.+?)</feedback>";
 pub const CACHE_DIR: &str = "./.cache";
 pub const RUBRICS_DIR: &str = "./rubrics";
 pub const DATA_DIR: &str = "./data";
+pub const DATA_URL: &str = "https://raw.githubusercontent.com/sariola/fwj/refs/heads/main/data/subquery-data.json";
+pub const RUBRIC_URL: &str = "https://raw.githubusercontent.com/sariola/fwj/refs/heads/main/rubrics/subquery-decomp.jinja";
 
 lazy_static! {
     pub static ref FILE_LOCKS: Mutex<HashMap<String, Mutex<()>>> = Mutex::new(HashMap::new());
@@ -54,6 +56,8 @@ pub enum AppError {
     CustomError(String),
     #[error("Parse error: {0}")]
     ParseError(String),
+    #[error("Download error: {0}")]
+    DownloadError(String),
 }
 
 #[derive(Debug, Deserialize)]

@@ -203,3 +203,39 @@ async fn verify_file(file_path: &str, lock_file_path: &str, expected_hash: &str)
     info!("Download complete flag not found or false");
     Ok(false)
 }
+
+pub async fn download_file(url: &str, file_path: &str) -> Result<(), AppError> {
+    println!("Downloading file from: {}", style(url).yellow());
+
+    // Check if the file already exists
+    if tokio::fs::metadata(file_path).await.is_ok() {
+        println!("{}", style(format!("File already exists at: {}", file_path)).yellow());
+        return Ok(());
+    }
+
+    let client = Client::new();
+    let response = client.get(url).send().await?;
+
+    if !response.status().is_success() {
+        return Err(AppError::DownloadError(format!("Failed to download file: HTTP {}", response.status())));
+    }
+
+    let content = response.bytes().await?;
+
+    // Ensure the directory exists
+    if let Some(parent) = std::path::Path::new(file_path).parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+
+    // Use OpenOptions to create the file only if it doesn't exist
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(file_path)
+        .await?;
+
+    file.write_all(&content).await?;
+
+    println!("File downloaded and saved to: {}", style(file_path).green());
+    Ok(())
+}
