@@ -22,7 +22,7 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
 
              F   L   O   W   A   I
 
-             ⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+            ⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
     ⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠀⠀⢀⣀⡀⠀⠀⠀⠀⠀⠀⠀
     ⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠋⠀⢀⣴⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀
     ⠀⠀⠀⠀⠀⠀⠀⠈⠛⠛⠛⠛⠛⠛⠛⠛⠋⠀⢀⣴⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀
@@ -58,7 +58,7 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
             Press any key to continue.
     ").white().dim());
 
-    println!("{}", style("            ❤\n\n").red());
+    println!("{}", style("            ❤\n").red());
 
 
     let mut input = String::new();
