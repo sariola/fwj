@@ -481,7 +481,7 @@ pub async fn execute_llamafile_with_retries(
         llamafile_path.display(),
         args.context_size,
         args.gpu_layers,
-        if args.enable_kv_offload { "" } else { "-nkvo" },
+        if args.disable_kv_offload { "-nkvo" } else { "" },
         args.temperature,
         args.max_tokens,
         thread_count,

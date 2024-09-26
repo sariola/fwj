@@ -38,7 +38,7 @@ pub struct Args {
     pub context_size: usize,
 
     /// GPU layers for llamafile
-    #[arg(long, default_value = "32")]
+    #[arg(long, default_value = "34")]
     pub gpu_layers: usize,
 
     /// Temperature for llamafile
@@ -57,9 +57,9 @@ pub struct Args {
     #[arg(short = 'a', long)]
     pub llamafile_kvargs: Option<String>,
 
-    /// Enable key-value offloading
+    /// Disable key-value offloading
     #[arg(long)]
-    pub enable_kv_offload: bool,
+    pub disable_kv_offload: bool,
 
     #[command(subcommand)]
     pub command: Option<Commands>,
