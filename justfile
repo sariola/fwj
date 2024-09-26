@@ -85,7 +85,7 @@ upload-release-assets VERSION:
     (echo "Release v{{VERSION}} already has assets. Do you want to overwrite them? (y/N)" && \
      read -r response && \
      if [ "$response" != "y" ] && [ "$response" != "Y" ]; then \
-         echo "Aborting upload process." && exit 1; \
+         echo "Aborting upload process." && exit 0; \
      fi) || true
 
     @echo "Proceeding with upload..."

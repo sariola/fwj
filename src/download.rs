@@ -3,7 +3,6 @@ use crate::Config;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
-use std::time::Instant;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use std::os::unix::fs::PermissionsExt;
@@ -11,15 +10,61 @@ use std::collections::HashMap;
 use tokio::fs::OpenOptions;
 use serde_json::{json, Value};
 use tokio::io::{AsyncSeekExt, AsyncReadExt};
-use log::{error, debug, info};
+use log::{info};
 use tokio::fs;
-use sha2::{Sha256, Digest};
 use std::path::PathBuf;
 
 use crate::models::LLAMAFILE_LOCK_URL;
 
 pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppError> {
-    println!("\n{}", style("Checking Flow-Judge-v0.1 llamafile"));
+    println!("{}",
+        style("
+
+             F   L   O   W   A   I
+
+        ⠀⠀⠀⠀⠀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠀⠀⢀⣀⡀⠀⠀⠀⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠋⠀⢀⣴⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⠈⠛⠛⠛⠛⠛⠛⠛⠛⠋⠀⢀⣴⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⢀⣤⣤⣤⣤⡄⠀⠀⠀⢀⣴⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⡿⠃⠀⢀⣴⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⠸⣿⡿⠋⠀⠀⢰⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀
+    ").white());
+
+    println!("{}", style("            --------------------------------------------------------------------------------").white().dim());
+
+    println!("{}", style("
+            Welcome friend.
+
+            This is a quick-start for the Flow-Judge-v0.1 model.
+
+            This tool can evaluate 'input' and 'output' pairs from csv and json files.
+
+            The program will add columns 'score' and 'feedback' to the given file, editing it in-place.
+
+            Before you begin you might want to read the instructions from the model card:
+
+            https://huggingface.co/flowaicom/Flow-Judge-v0.1#prompt-format
+    ").white());
+
+    println!("{}", style("            --------------------------------------------------------------------------------").white().dim());
+
+    println!("{}", style("
+            We won't show this notice again. Unless you delete your cache.
+
+            Which, by the way, lives here: ~/.cache/fwj/
+
+            Press any key to continue.
+    ").white().dim());
+
+    println!("{}", style("            ❤\n\n").red());
+
+
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+
+    info!("\n{}", style("Checking Flow-Judge-v0.1 llamafile"));
 
     let file_path = PathBuf::from(&config.cache_dir).join("flow-judge.llamafile");
     let lock_file_path = PathBuf::from(&config.cache_dir).join("flow-judge.llamafile.lock");
@@ -32,13 +77,13 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
 
     // Check if file exists and verify
     if let Ok(_metadata) = tokio::fs::metadata(&file_path).await {
-        println!("Existing llamafile found. Verifying...");
+        info!("Existing llamafile found. Verifying...");
 
         if verify_file(&file_path, &lock_file_path).await? {
-            println!("{}", style("Verification passed. Using existing llamafile."));
+            info!("{}", style("Verification passed. Using existing llamafile."));
             return Ok(());
         } else {
-            println!("Verification failed. Re-downloading llamafile.");
+            info!("Verification failed. Re-downloading llamafile.");
         }
     }
 
@@ -80,7 +125,6 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
     pb.set_position(0);
 
     // Start the download
-    let start = Instant::now();
     let mut response = client.get(&llamafile_url).send().await?;
     let mut file = tokio::fs::File::create(file_path.to_str().unwrap()).await?;
     let mut downloaded: u64 = 0;

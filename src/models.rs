@@ -78,8 +78,6 @@ pub struct Config {
     pub tasks: Vec<TaskConfig>,
     #[serde(default = "default_llamafile_url")]
     pub llamafile_url: String,
-    #[serde(default = "default_max_retries")]
-    pub max_retries: u32,
     #[serde(default = "default_cache_dir")]
     pub cache_dir: String,
     #[serde(default = "default_rubrics_dir")]
@@ -89,7 +87,6 @@ pub struct Config {
 }
 
 pub fn default_llamafile_url() -> String { LLAMAFILE_URL.to_string() }
-pub fn default_max_retries() -> u32 { MAX_RETRIES }
 pub fn default_cache_dir() -> String {
     dirs::cache_dir()
         .map(|cache| cache.join("fwj"))

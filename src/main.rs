@@ -9,7 +9,7 @@ mod cli;
 
 use models::{AppError, Config, TaskConfig, IoItem};
 use models::{FILE_LOCKS, SCORE_REGEX, RUBRICS_DIR, MAX_RETRIES};
-use models::{DATA_URL, RUBRIC_URL, DATA_DIR};
+use models::{DATA_URL, RUBRIC_URL};
 use std::path::Path;
 
 use crate::download::{download_flow_judge_llamafile, download_file};
@@ -17,7 +17,6 @@ use crate::download::{download_flow_judge_llamafile, download_file};
 use log::{debug, error, info, warn};
 use minijinja::{context, Environment};
 use serde_json::{self, Value};
-use serde_json::from_str as json_from_str;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -27,21 +26,16 @@ use tokio::sync::Mutex;
 use regex::Regex;
 use env_logger::Env;
 use futures::stream::{self, StreamExt};
-use console::{style, Term, Style};
-use textwrap::wrap;
+use console::{style};
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use std::time::Instant;
 use std::sync::Arc;
 use std::fs::File;
-use csv::{Reader, Writer, QuoteStyle};
-use tokio::io::AsyncReadExt;
 use csv::{WriterBuilder, ReaderBuilder};
-use std::io::{Read, Write, BufReader, BufWriter};
+use std::io::{Write, BufReader, BufWriter};
 use std::str::from_utf8;
-use serde::{Serialize, Deserialize};
-use std::env::args;
 use crate::cli::Args;
-use clap_complete::{generate, shells::Bash, shells::Fish, shells::Zsh, shells::Elvish, shells::PowerShell};
+use clap_complete::{generate};
 use std::io;
 use clap::CommandFactory;
 
@@ -65,9 +59,6 @@ impl Config {
 }
 
 fn display_last_result(result: &str) {
-    let term = Term::stdout();
-    let width = term.size().1 as usize;
-
     println!("\n{}", style("Last Processed Result:\n\n").bold().underlined());
 
     if result.trim().is_empty() {
@@ -138,7 +129,6 @@ async fn main() -> Result<(), AppError> {
     let mut config = Config {
         tasks: vec![],
         llamafile_url: models::default_llamafile_url(),
-        max_retries: models::default_max_retries(),
         cache_dir: models::default_cache_dir(),
         rubrics_dir: models::default_rubrics_dir(),
         data_dir: models::default_data_dir(),
@@ -318,7 +308,9 @@ async fn process_task(task_config: &TaskConfig, config: &Config, batch_size: usi
             let item_progress = item_progress_bars[index % concurrent_batch_size].clone();
             item_progress.set_message(style(format!("Item {}/{} - Processing", index + 1, total_items)).dim().bold().to_string());
             let main_progress_bar = main_progress_bar.clone();
-            let parsing_failures = Arc::clone(&parsing_failures);
+
+            // FIXME: to be implemented
+            let _parsing_failures = Arc::clone(&parsing_failures);
             let last_result = Arc::clone(&last_result);
 
             async move {
@@ -595,19 +587,6 @@ fn read_last_result(cache_dir: &str) -> Result<String, AppError> {
     let result_file_path = PathBuf::from(cache_dir).join("last_result.txt");
     std::fs::read_to_string(&result_file_path)
         .map_err(|e| AppError::FileReadError(format!("Failed to read last result file: {}", e)))
-}
-
-// Helper function to read file as UTF-8
-async fn read_file_as_utf8(path: &PathBuf) -> Result<String, AppError> {
-    let mut file = tokio::fs::File::open(path).await
-        .map_err(|e| AppError::FileReadError(format!("Failed to open file '{}': {}", path.display(), e)))?;
-
-    let mut content = Vec::new();
-    file.read_to_end(&mut content).await
-        .map_err(|e| AppError::FileReadError(format!("Failed to read file '{}': {}", path.display(), e)))?;
-
-    String::from_utf8(content)
-        .map_err(|e| AppError::EncodingError(format!("File '{}' is not valid UTF-8: {}", path.display(), e)))
 }
 
 // Helper function to normalize line endings
