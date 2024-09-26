@@ -43,6 +43,7 @@ compress-binaries VERSION:
     tar -czf target/release-packages/fwj-{{VERSION}}-aarch64-unknown-linux-musl.tar.gz -C target/aarch64-unknown-linux-musl/release fwj
     tar -czf target/release-packages/fwj-{{VERSION}}-x86_64-apple-darwin.tar.gz -C target/x86_64-apple-darwin/release fwj
     tar -czf target/release-packages/fwj-{{VERSION}}-universal2-apple-darwin.tar.gz -C target/universal2-apple-darwin/release fwj
+    tar -czf target/release-packages/fwj-{{VERSION}}-aarch64-apple-darwin.tar.gz -C target/aarch64-apple-darwin/release fwj
 
 # Upload built binaries to the GitHub release
 upload-release-assets VERSION:
@@ -59,6 +60,9 @@ upload-release-assets VERSION:
 
     [ -f "target/release-packages/fwj-{{VERSION}}-universal2-apple-darwin.tar.gz" ] || \
     (echo "Error: universal2-macos compressed binary not found" && exit 1)
+
+    [ -f "target/release-packages/fwj-{{VERSION}}-aarch64-apple-darwin.tar.gz" ] || \
+    (echo "Error: aarch64-macos compressed binary not found" && exit 1)
 
     @echo "All compressed binary files found."
 
@@ -78,7 +82,8 @@ upload-release-assets VERSION:
         target/release-packages/fwj-{{VERSION}}-x86_64-unknown-linux-musl.tar.gz \
         target/release-packages/fwj-{{VERSION}}-aarch64-unknown-linux-musl.tar.gz \
         target/release-packages/fwj-{{VERSION}}-x86_64-apple-darwin.tar.gz \
-        target/release-packages/fwj-{{VERSION}}-universal2-apple-darwin.tar.gz || \
+        target/release-packages/fwj-{{VERSION}}-universal2-apple-darwin.tar.gz \
+        target/release-packages/fwj-{{VERSION}}-aarch64-apple-darwin.tar.gz || \
     (echo "Error uploading assets. Checking release status..." && \
      gh release view v{{VERSION}} && \
      exit 1)

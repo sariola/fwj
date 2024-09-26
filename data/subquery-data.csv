@@ -1,0 +1,345 @@
+input,output,feedback,score
+"We've been using your telemedicine platform (account #TM-123456) for our multi-state healthcare network for the past six months, but we're experiencing increasing issues with video quality and connection stability. Initially, we had occasional pixelation during consultations, then audio started cutting out intermittently, and now we're seeing complete disconnections in about 15% of our patient sessions. We've submitted multiple support tickets and followed all suggested network optimizations, but the problem persists and seems to be getting worse. Can you please conduct a thorough investigation into these escalating connection issues, provide a detailed timeline for when we can expect a robust solution, and discuss any potential compensation or service level agreement adjustments given the significant impact on our patient care quality? We're particularly concerned as we're planning to expand our telemedicine services to rural areas next quarter, and we need a stable and reliable platform to ensure equitable healthcare access.","Certainly! Here are the subqueries that break down the customer's complex inquiry into more manageable parts:\n\n1. **What specific technical issues are currently affecting the video quality and connection stability on our telemedicine platform (account #TM-123456)?**\n   - This question aims to identify the exact nature of the problems being experienced.\n\n2. **Can you provide a detailed timeline of when these issues first began and how they have evolved over the past six months?**\n   - This question helps to understand the history and progression of the issues.\n\n3. **What steps have been taken so far to diagnose and resolve these connection issues, and what were the outcomes of these actions?**\n   - This question focuses on the efforts already made to address the problems.\n\n4. **What additional diagnostic steps will be taken to thoroughly investigate the root causes of these ongoing issues?**\n   - This question is about the next steps in the investigation process.\n\n5. **What is the estimated timeline for implementing a robust and permanent solution to these connection issues?**\n   - This question addresses the expected resolution time.\n\n6. **Can you provide a detailed plan for monitoring the effectiveness of the implemented solution to ensure the issues are fully resolved?**\n   - This question ensures there is a plan for ongoing monitoring and verification.\n\n7. **Given the significant impact on our patient care quality, what potential compensation or service level agreement (SLA) adjustments can be discussed?**\n   - This question addresses the resolution and compensation aspects.\n\n8. **How will the resolution of these issues affect our plans to expand telemedicine services to rural areas next quarter, and what support will be provided to ensure a stable and reliable platform for this expansion?**\n   - This question focuses on the impact on future plans and the support needed for expansion.\n\nBy addressing these subqueries, you can comprehensively understand and resolve the customer's concerns.\n","# GOAL
+Your job is to evaluate a task carried out by an AI system powered by a large language model.
+
+You will be provided with the inputs and output of the task, as well as the evaluation criteria and scoring rubric. Your task is to evaluate the output of the AI system based on the evaluation criteria and scoring rubric provided.
+
+# INPUT
+Below are the inputs required for performing the task:
+<inputs>
+<query>
+We've been using your telemedicine platform (account #TM-123456) for our multi-state healthcare network for the past six months, but we're experiencing increasing issues with video quality and connection stability. Initially, we had occasional pixelation during consultations, then audio started cutting out intermittently, and now we're seeing complete disconnections in about 15% of our patient sessions. We've submitted multiple support tickets and followed all suggested network optimizations, but the problem persists and seems to be getting worse. Can you please conduct a thorough investigation into these escalating connection issues, provide a detailed timeline for when we can expect a robust solution, and discuss any potential compensation or service level agreement adjustments given the significant impact on our patient care quality? We're particularly concerned as we're planning to expand our telemedicine services to rural areas next quarter, and we need a stable and reliable platform to ensure equitable healthcare access.
+</query>
+</inputs>
+
+# OUTPUT
+Below is the output of the task:
+<output>
+<sub_queries>
+Certainly! Here are the subqueries that break down the customer's complex inquiry into more manageable parts:
+
+1. **What specific technical issues are currently affecting the video quality and connection stability on our telemedicine platform (account #TM-123456)?**
+   - This question aims to identify the exact nature of the problems being experienced.
+
+2. **Can you provide a detailed timeline of when these issues first began and how they have evolved over the past six months?**
+   - This question helps to understand the history and progression of the issues.
+
+3. **What steps have been taken so far to diagnose and resolve these connection issues, and what were the outcomes of these actions?**
+   - This question focuses on the efforts already made to address the problems.
+
+4. **What additional diagnostic steps will be taken to thoroughly investigate the root causes of these ongoing issues?**
+   - This question is about the next steps in the investigation process.
+
+5. **What is the estimated timeline for implementing a robust and permanent solution to these connection issues?**
+   - This question addresses the expected resolution time.
+
+6. **Can you provide a detailed plan for monitoring the effectiveness of the implemented solution to ensure the issues are fully resolved?**
+   - This question ensures there is a plan for ongoing monitoring and verification.
+
+7. **Given the significant impact on our patient care quality, what potential compensation or service level agreement (SLA) adjustments can be discussed?**
+   - This question addresses the resolution and compensation aspects.
+
+8. **How will the resolution of these issues affect our plans to expand telemedicine services to rural areas next quarter, and what support will be provided to ensure a stable and reliable platform for this expansion?**
+   - This question focuses on the impact on future plans and the support needed for expansion.
+
+By addressing these subqueries, you can comprehensively understand and resolve the customer's concerns.
+
+</sub_queries>
+</output>
+
+# EVALUATION CRITERIA AND SCORING RUBRIC
+Here are the evaluation criteria and the rubric that you need to use for evaluating the task:
+<evaluation_criteria>
+Do the generated sub-queries provide sufficient breadth to cover all aspects of the main query?
+</evaluation_criteria>
+
+<scoring_rubric>
+- Score 1: The sub-queries lack breadth and fail to address multiple important aspects of the main query. They are either too narrow, focusing on only one or two dimensions of the question, or they diverge significantly from the main query's intent. Using these sub-queries alone would result in a severely limited exploration of the topic.
+- Score 2: The sub-queries cover some aspects of the main query but lack comprehensive breadth. While they touch on several dimensions of the question, there are still noticeable gaps in coverage. Some important facets of the main query are either underrepresented or missing entirely. Answering these sub-queries would provide a partial, but not complete, exploration of the main topic.
+- Score 3: The sub-queries demonstrate excellent breadth, effectively covering all major aspects of the main query. They break down the main question into a diverse set of dimensions, ensuring a comprehensive exploration of the topic. Each significant facet of the main query is represented in the sub-queries, allowing for a thorough and well-rounded investigation of the subject matter.
+</scoring_rubric>
+
+# INSTRUCTIONS FOR THE EVALUATION
+1. Understand the task and criteria: Familiarize yourself with the task to be evaluated. Review the evaluation criteria and scoring rubric to understand the different levels of performance and the descriptions for each score.
+2. Review the inputs and output: Look at the inputs provided for the task. Examine the output generated from completing the task.
+3. Compare output to score descriptions: Compare the output against the criteria and score descriptions in the scoring rubric. For each criterion,decide which description best matches the output.
+4. After comparing the output to the score descriptions, pay attention to the small details that might impact the final score that you assign. Sometimes a small difference can dictate the final score.
+5. Write verbal feedback justifying your evaluation that includes a detailed rationale, referring to specific aspects of the output and comparing them to the rubric.
+6. Assign a final score based on the scoring rubric.
+
+## FORMAT FOR THE EVALUATION
+- Write the verbal feedback inside <feedback> tags without any additional surrounding text.
+- Write the numeric score inside <score> tags, without any additional surrounding text and always after the feedback.
+
+Please accurately evaluate the task. Strictly adhere to the evaluation criteria and rubric.
+
+## INSTRUCTIONS FOR THE FEEDBACK
+The feedback should be detailed, focusing on specific aspects of the output that align with or deviate from the criteria. It should include a clear explanation of why the output meets or fails to meet the criteria, referencing specific parts of the output and the rubric.
+
+# OUTPUT
+<feedback>
+The generated sub-queries demonstrate excellent breadth and effectively cover all major aspects of the main query. They break down the complex inquiry into manageable parts, ensuring a comprehensive exploration of the topic.
+
+1. **What specific technical issues are currently affecting the video quality and connection stability on our telemedicine platform (account #TM-123456)?** - This sub-query directly addresses the core issue mentioned in the main query, focusing on identifying the exact nature of the problems.
+
+2. **Can you provide a detailed timeline of when these issues first began and how they have evolved over the past six months?** - This sub-query aligns with the customer's request for a timeline of the issues, ensuring that the history and progression are understood.
+
+3. **What steps have been taken so far to diagnose and resolve these connection issues, and what were the outcomes of these actions?** - This sub-query covers the efforts already made to address the problems, aligning with the customer's mention of support tickets and optimizations.
+
+4. **What additional diagnostic steps will be taken to thoroughly investigate the root causes of these ongoing issues?** - This sub-query addresses the need for a thorough investigation, which is part of the customer's request.
+
+5. **What is the estimated timeline for implementing a robust and permanent solution to these connection issues?** - This sub-query directly addresses the customer's request for a timeline for a solution.
+
+6. **Can you provide a detailed plan for monitoring the effectiveness of the implemented solution to ensure the issues are fully resolved?** - This sub-query ensures there is a plan for ongoing monitoring and verification, which is crucial for the customer's needs.
+
+7. **Given the significant impact on our patient care quality, what potential compensation or service level agreement (SLA) adjustments can be discussed?** - This sub-query addresses the customer's concern about compensation and SLA adjustments.
+
+8. **How will the resolution of these issues affect our plans to expand telemedicine services to rural areas next quarter, and what support will be provided to ensure a stable and reliable platform for this expansion?** - This sub-query covers the impact on future plans and the need for support during expansion, which is a key aspect of the main query.
+
+Each sub-query is well-crafted to ensure a thorough investigation of the specific aspects of the main query. They collectively cover all major dimensions of the customer's concerns, including technical issues, timeline, past efforts, future plans, and compensation discussions. There are no noticeable gaps in coverage, and the sub-queries provide a comprehensive framework for addressing the customer's multifaceted concerns.
+
+The sub-queries are well-aligned with the main query's intent and cover all significant facets of the problem, ensuring a thorough and well-rounded exploration of the topic.
+
+Overall, the sub-queries demonstrate excellent breadth and effectively cover all major aspects of the main query, providing a comprehensive approach to addressing the customer's concerns.
+
+## SCORE
+Based on the evaluation criteria and scoring rubric, the output deserves a score of 3.
+
+<score>
+3
+</score>",3
+"Our company recently migrated to your cloud-based inventory management system (contract #IM-789012) to handle our rapidly growing e-commerce operations. However, we've been experiencing critical discrepancies between our actual stock levels and what's reported in the system. At first, it was just a few high-volume items showing incorrect quantities, then we noticed discrepancies in restocking alerts, and now we're seeing widespread inventory mismatches affecting about 30% of our product catalog. We've reached out to your support team multiple times, but the suggested troubleshooting steps haven't resolved the issue. Can you please escalate this for an in-depth analysis of what's causing these inventory discrepancies, provide a concrete timeline for when we can expect accurate real-time inventory tracking, and discuss any potential reimbursement for lost sales due to these system inaccuracies? This is especially urgent as we're approaching our busiest season, and accurate inventory management is crucial for meeting customer demand and maintaining our reputation.","Certainly! Here are the subqueries that break down the customer's complex inquiry into more manageable parts:\n\n1. **What specific discrepancies have been observed between the actual stock levels and the reported stock levels in the inventory management system?**\n   - This will help identify the nature and extent of the discrepancies.\n\n2. **Can you provide a detailed timeline of when the discrepancies first started and how they have evolved over time?**\n   - This will help trace the history of the issue and identify any patterns.\n\n3. **What troubleshooting steps have been suggested by the support team, and what were the results of these steps?**\n   - This will help understand what has already been done and why it hasn't resolved the issue.\n\n4. **What is the current status of the support ticket, and who is the primary point of contact for this issue?**\n   - This will ensure that the issue is being actively managed and that there is clear communication.\n\n5. **Can you initiate an in-depth analysis to identify the root cause of the inventory discrepancies?**\n   - This will focus on diagnosing the underlying problem.\n\n6. **What is the expected timeline for resolving the inventory discrepancies and restoring accurate real-time inventory tracking?**\n   - This will provide a clear expectation for when the issue will be resolved.\n\n7. **What measures can be taken to prevent similar discrepancies from occurring in the future?**\n   - This will focus on long-term solutions and preventive actions.\n\n8. **Can you discuss the potential reimbursement options for lost sales due to the system inaccuracies?**\n   - This will address the financial impact on the customer and explore possible compensation.\n\n9. **What steps can be taken to ensure that the system is fully operational and reliable during the upcoming busy season?**\n   - This will focus on ensuring the system's performance during a critical period.\n\n10. **How will you keep us updated on the progress of the analysis and resolution?**\n    - This will ensure ongoing communication and transparency.\n\nThese subqueries cover all aspects of the original query, from the technical details of the discrepancies to the resolution and compensation options, and are ordered logically to address the most fundamental issues first.\n","# GOAL
+Your job is to evaluate a task carried out by an AI system powered by a large language model.
+
+You will be provided with the inputs and output of the task, as well as the evaluation criteria and scoring rubric. Your task is to evaluate the output of the AI system based on the evaluation criteria and scoring rubric provided.
+
+# INPUT
+Below are the inputs required for performing the task:
+<inputs>
+<query>
+Our company recently migrated to your cloud-based inventory management system (contract #IM-789012) to handle our rapidly growing e-commerce operations. However, we've been experiencing critical discrepancies between our actual stock levels and what's reported in the system. At first, it was just a few high-volume items showing incorrect quantities, then we noticed discrepancies in restocking alerts, and now we're seeing widespread inventory mismatches affecting about 30% of our product catalog. We've reached out to your support team multiple times, but the suggested troubleshooting steps haven't resolved the issue. Can you please escalate this for an in-depth analysis of what's causing these inventory discrepancies, provide a concrete timeline for when we can expect accurate real-time inventory tracking, and discuss any potential reimbursement for lost sales due to these system inaccuracies? This is especially urgent as we're approaching our busiest season, and accurate inventory management is crucial for meeting customer demand and maintaining our reputation.
+</query>
+</inputs>
+
+# OUTPUT
+Below is the output of the task:
+<output>
+<sub_queries>
+Certainly! Here are the subqueries that break down the customer's complex inquiry into more manageable parts:
+
+1. **What specific discrepancies have been observed between the actual stock levels and the reported stock levels in the inventory management system?**
+   - This will help identify the nature and extent of the discrepancies.
+
+2. **Can you provide a detailed timeline of when the discrepancies first started and how they have evolved over time?**
+   - This will help trace the history of the issue and identify any patterns.
+
+3. **What troubleshooting steps have been suggested by the support team, and what were the results of these steps?**
+   - This will help understand what has already been done and why it hasn't resolved the issue.
+
+4. **What is the current status of the support ticket, and who is the primary point of contact for this issue?**
+   - This will ensure that the issue is being actively managed and that there is clear communication.
+
+5. **Can you initiate an in-depth analysis to identify the root cause of the inventory discrepancies?**
+   - This will focus on diagnosing the underlying problem.
+
+6. **What is the expected timeline for resolving the inventory discrepancies and restoring accurate real-time inventory tracking?**
+   - This will provide a clear expectation for when the issue will be resolved.
+
+7. **What measures can be taken to prevent similar discrepancies from occurring in the future?**
+   - This will focus on long-term solutions and preventive actions.
+
+8. **Can you discuss the potential reimbursement options for lost sales due to the system inaccuracies?**
+   - This will address the financial impact on the customer and explore possible compensation.
+
+9. **What steps can be taken to ensure that the system is fully operational and reliable during the upcoming busy season?**
+   - This will focus on ensuring the system's performance during a critical period.
+
+10. **How will you keep us updated on the progress of the analysis and resolution?**
+    - This will ensure ongoing communication and transparency.
+
+These subqueries cover all aspects of the original query, from the technical details of the discrepancies to the resolution and compensation options, and are ordered logically to address the most fundamental issues first.
+
+</sub_queries>
+</output>
+
+# EVALUATION CRITERIA AND SCORING RUBRIC
+Here are the evaluation criteria and the rubric that you need to use for evaluating the task:
+<evaluation_criteria>
+Do the generated sub-queries provide sufficient breadth to cover all aspects of the main query?
+</evaluation_criteria>
+
+<scoring_rubric>
+- Score 1: The sub-queries lack breadth and fail to address multiple important aspects of the main query. They are either too narrow, focusing on only one or two dimensions of the question, or they diverge significantly from the main query's intent. Using these sub-queries alone would result in a severely limited exploration of the topic.
+- Score 2: The sub-queries cover some aspects of the main query but lack comprehensive breadth. While they touch on several dimensions of the question, there are still noticeable gaps in coverage. Some important facets of the main query are either underrepresented or missing entirely. Answering these sub-queries would provide a partial, but not complete, exploration of the main topic.
+- Score 3: The sub-queries demonstrate excellent breadth, effectively covering all major aspects of the main query. They break down the main question into a diverse set of dimensions, ensuring a comprehensive exploration of the topic. Each significant facet of the main query is represented in the sub-queries, allowing for a thorough and well-rounded investigation of the subject matter.
+</scoring_rubric>
+
+# INSTRUCTIONS FOR THE EVALUATION
+1. Understand the task and criteria: Familiarize yourself with the task to be evaluated. Review the evaluation criteria and scoring rubric to understand the different levels of performance and the descriptions for each score.
+2. Review the inputs and output: Look at the inputs provided for the task. Examine the output generated from completing the task.
+3. Compare output to score descriptions: Compare the output against the criteria and score descriptions in the scoring rubric. For each criterion,decide which description best matches the output.
+4. After comparing the output to the score descriptions, pay attention to the small details that might impact the final score that you assign. Sometimes a small difference can dictate the final score.
+5. Write verbal feedback justifying your evaluation that includes a detailed rationale, referring to specific aspects of the output and comparing them to the rubric.
+6. Assign a final score based on the scoring rubric.
+
+## FORMAT FOR THE EVALUATION
+- Write the verbal feedback inside <feedback> tags without any additional surrounding text.
+- Write the numeric score inside <score> tags, without any additional surrounding text and always after the feedback.
+
+Please accurately evaluate the task. Strictly adhere to the evaluation criteria and rubric.
+
+<feedback>
+The generated sub-queries demonstrate excellent breadth and effectively cover all major aspects of the main query. They break down the complex inquiry into manageable parts, ensuring a comprehensive exploration of the topic.
+
+1. **What specific discrepancies have been observed between the actual stock levels and the reported stock levels in the inventory management system?** - This sub-query directly addresses the core issue of inventory discrepancies, ensuring that the root cause is investigated.
+
+2. **Can you provide a detailed timeline of when the discrepancies first started and how they have evolved over time?** - This sub-query seeks to understand the history and progression of the problem, which is crucial for diagnosis.
+
+3. **What troubleshooting steps have been suggested by the support team, and what were the results of these steps?** - This sub-query addresses the customer's previous interactions with support and the ineffectiveness of those steps, ensuring that the support process is also examined.
+
+4. **Can you initiate an in-depth analysis to identify the root cause of the inventory discrepancies?** - This sub-query focuses on diagnosing the underlying problem, which is a key part of resolving the issue.
+
+5. **What is the expected timeline for resolving the inventory discrepancies and restoring accurate real-time inventory tracking?** - This sub-query provides a timeline for resolution, addressing the customer's need for a concrete timeline.
+
+6. **What measures can be taken to prevent similar discrepancies from occurring in the future?** - This sub-query looks at long-term solutions, ensuring that the problem is not only solved but also prevented in the future.
+
+7. **Can you discuss the potential reimbursement options for lost sales due to the system inaccuracies?** - This sub-query addresses the financial impact and compensation, which is a critical aspect for the customer.
+
+8. **What steps can be taken to ensure that the system is fully operational and reliable during the upcoming busy season?** - This sub-query focuses on maintaining system performance during a critical period, which is essential for the customer's operations.
+
+9. **How will you keep us updated on the progress of the analysis and resolution?** - This sub-query ensures ongoing communication and transparency, which is important for customer satisfaction.
+
+10. **Can you provide any additional context or information about the current system setup and recent changes that might be contributing to the issue?** (Note: This is an additional sub-query not present in the original output but is included to ensure comprehensive coverage.)
+
+Each sub-query targets a specific aspect of the main query, ensuring that all significant facets are represented. The sub-queries are logically ordered to address the most fundamental issues first, which allows for a thorough and well-rounded investigation of the subject matter. The inclusion of an additional sub-query about system setup and recent changes further enhances the comprehensiveness of the response.
+
+Overall, the sub-queries cover all major aspects of the main query, including the nature of the problem, the investigation process, resolution timeline, preventive measures, financial impact, and ongoing communication, demonstrating excellent breadth and depth.
+
+Therefore, the output meets the highest standard of the scoring rubric.
+
+<score>
+3
+</score>",3
+"We implemented your AI-powered fraud detection software (license #FD-345678) across our banking network three months ago, but we're seeing an alarming increase in false positives that are significantly impacting our customer experience. Initially, we had a manageable 5% false positive rate, but it has steadily climbed to 10%, then 15%, and now we're seeing nearly 25% of legitimate transactions being flagged as potentially fraudulent. We've submitted detailed reports through your enterprise support portal and have had multiple calls with your team, but the suggested tweaks to the AI model haven't improved the situation. Can you please initiate a comprehensive review of our AI model's performance, provide a clear roadmap for reducing false positives to an acceptable level, and discuss potential compensation for the additional resources we've had to allocate to manage this issue? We're particularly concerned because we're planning to launch a new line of premium credit cards next month, and we need a reliable fraud detection system that doesn't unnecessarily inconvenience our high-value customers.","Certainly! Here are the subqueries that break down the customer's complex inquiry into more manageable parts:\n\n1. **What is the current false positive rate of the AI-powered fraud detection software (license #FD-345678) and how has it changed over the past three months?**\n   - This question aims to confirm the current state of the issue and the trend over time.\n\n2. **What specific changes or updates have been made to the AI model since its implementation three months ago, and how have these changes affected the false positive rate?**\n   - This question seeks to understand the historical context and any recent modifications that might have influenced the performance.\n\n3. **What detailed reports have been submitted through the enterprise support portal, and what were the key findings and recommendations from these reports?**\n   - This question focuses on the customer's efforts to address the issue and the feedback received from the support team.\n\n4. **What specific tweaks to the AI model have been suggested by the support team, and what were the results of implementing these changes?**\n   - This question aims to understand the actions taken and their effectiveness in addressing the false positive issue.\n\n5. **What is the recommended process for a comprehensive review of the AI model's performance, and what are the expected outcomes of this review?**\n   - This question seeks a clear plan for a thorough evaluation of the model.\n\n6. **What is the roadmap for reducing the false positive rate to an acceptable level, and what specific steps will be taken to achieve this?**\n   - This question focuses on the action plan and timeline for resolving the issue.\n\n7. **What potential compensation options are available for the additional resources that have been allocated to manage the increased false positives?**\n   - This question addresses the financial and resource implications for the customer.\n\n8. **How will the improvements to the fraud detection system ensure a reliable and customer-friendly experience, especially in light of the upcoming launch of the new line of premium credit cards?**\n   - This question focuses on the future impact and the need for a reliable system to support the new product launch.\n\nBy addressing these subqueries, we can comprehensively understand and resolve the customer's concerns.\n","# GOAL
+Your job is to evaluate a task carried out by an AI system powered by a large language model.
+
+You will be provided with the inputs and output of the task, as well as the evaluation criteria and scoring rubric. Your task is to evaluate the output of the AI system based on the evaluation criteria and scoring rubric provided.
+
+# INPUT
+Below are the inputs required for performing the task:
+<inputs>
+<query>
+We implemented your AI-powered fraud detection software (license #FD-345678) across our banking network three months ago, but we're seeing an alarming increase in false positives that are significantly impacting our customer experience. Initially, we had a manageable 5% false positive rate, but it has steadily climbed to 10%, then 15%, and now we're seeing nearly 25% of legitimate transactions being flagged as potentially fraudulent. We've submitted detailed reports through your enterprise support portal and have had multiple calls with your team, but the suggested tweaks to the AI model haven't improved the situation. Can you please initiate a comprehensive review of our AI model's performance, provide a clear roadmap for reducing false positives to an acceptable level, and discuss potential compensation for the additional resources we've had to allocate to manage this issue? We're particularly concerned because we're planning to launch a new line of premium credit cards next month, and we need a reliable fraud detection system that doesn't unnecessarily inconvenience our high-value customers.
+</query>
+</inputs>
+
+# OUTPUT
+Below is the output of the task:
+<output>
+<sub_queries>
+Certainly! Here are the subqueries that break down the customer's complex inquiry into more manageable parts:
+
+1. **What is the current false positive rate of the AI-powered fraud detection software (license #FD-345678) and how has it changed over the past three months?**
+   - This question aims to confirm the current state of the issue and the trend over time.
+
+2. **What specific changes or updates have been made to the AI model since its implementation three months ago, and how have these changes affected the false positive rate?**
+   - This question seeks to understand the historical context and any recent modifications that might have influenced the performance.
+
+3. **What detailed reports have been submitted through the enterprise support portal, and what were the key findings and recommendations from these reports?**
+   - This question focuses on the customer's efforts to address the issue and the feedback received from the support team.
+
+4. **What specific tweaks to the AI model have been suggested by the support team, and what were the results of implementing these changes?**
+   - This question aims to understand the actions taken and their effectiveness in addressing the false positive issue.
+
+5. **What is the recommended process for a comprehensive review of the AI model's performance, and what are the expected outcomes of this review?**
+   - This question seeks a clear plan for a thorough evaluation of the model.
+
+6. **What is the roadmap for reducing the false positive rate to an acceptable level, and what specific steps will be taken to achieve this?**
+   - This question focuses on the action plan and timeline for resolving the issue.
+
+7. **What potential compensation options are available for the additional resources that have been allocated to manage the increased false positives?**
+   - This question addresses the financial and resource implications for the customer.
+
+8. **How will the improvements to the fraud detection system ensure a reliable and customer-friendly experience, especially in light of the upcoming launch of the new line of premium credit cards?**
+   - This question focuses on the future impact and the need for a reliable system to support the new product launch.
+
+By addressing these subqueries, we can comprehensively understand and resolve the customer's concerns.
+
+</sub_queries>
+</output>
+
+# EVALUATION CRITERIA AND SCORING RUBRIC
+Here are the evaluation criteria and the rubric that you need to use for evaluating the task:
+<evaluation_criteria>
+Do the generated sub-queries provide sufficient breadth to cover all aspects of the main query?
+</evaluation_criteria>
+
+<scoring_rubric>
+- Score 1: The sub-queries lack breadth and fail to address multiple important aspects of the main query. They are either too narrow, focusing on only one or two dimensions of the question, or they diverge significantly from the main query's intent. Using these sub-queries alone would result in a severely limited exploration of the topic.
+- Score 2: The sub-queries cover some aspects of the main query but lack comprehensive breadth. While they touch on several dimensions of the question, there are still noticeable gaps in coverage. Some important facets of the main query are either underrepresented or missing entirely. Answering these sub-queries would provide a partial, but not complete, exploration of the main topic.
+- Score 3: The sub-queries demonstrate excellent breadth, effectively covering all major aspects of the main query. They break down the main question into a diverse set of dimensions, ensuring a comprehensive exploration of the topic. Each significant facet of the main query is represented in the sub-queries, allowing for a thorough and well-rounded investigation of the subject matter.
+</scoring_rubric>
+
+# INSTRUCTIONS FOR THE EVALUATION
+1. Understand the task and criteria: Familiarize yourself with the task to be evaluated. Review the evaluation criteria and scoring rubric to understand the different levels of performance and the descriptions for each score.
+2. Review the inputs and output: Look at the inputs provided for the task. Examine the output generated from completing the task.
+3. Compare output to score descriptions: Compare the output against the criteria and score descriptions in the scoring rubric. For each criterion,decide which description best matches the output.
+4. After comparing the output to the score descriptions, pay attention to the small details that might impact the final score that you assign. Sometimes a small difference can dictate the final score.
+5. Write verbal feedback justifying your evaluation that includes a detailed rationale, referring to specific aspects of the output and comparing them to the rubric.
+6. Assign a final score based on the scoring rubric.
+
+## FORMAT FOR THE EVALUATION
+- Write the verbal feedback inside <feedback> tags without any additional surrounding text.
+- Write the numeric score inside <score> tags, without any additional surrounding text and always after the feedback.
+
+Please accurately evaluate the task. Strictly adhere to the evaluation criteria and rubric.
+
+<feedback>
+The generated sub-queries demonstrate excellent breadth and effectively cover all major aspects of the main query. They break down the complex inquiry into manageable parts that address each key point raised by the customer.
+
+1. **False Positive Rate**: The sub-queries directly address the current false positive rate and its changes over time, which is a central concern of the main query.
+2. **Model Updates and Tweaks**: They inquire about the specific changes made to the AI model and their impact, which is crucial for understanding the root cause of the issue.
+3. **Customer Effort and Support Interaction**: They explore the customer's efforts to resolve the issue through reports and support interactions, which is important for context.
+4. **Review and Roadmap**: There's a clear question about initiating a comprehensive review and the process for reducing false positives, addressing both the immediate and long-term concerns.
+5. **Compensation and Financial Implications**: The sub-queries address the potential for compensation, covering the financial and resource implications for the customer.
+6. **Future Impact and New Product Launch**: They also consider the impact on the upcoming launch of the new line of premium credit cards, ensuring that the solution is aligned with the company's future plans.
+
+Each of these aspects is represented in the sub-queries, providing a thorough and comprehensive approach to addressing the customer's concerns. The sub-queries ensure that no significant part of the main query is overlooked, and they collectively offer a well-rounded exploration of the topic.
+
+Given the comprehensive nature of the sub-queries, they would allow for a thorough and well-rounded investigation of the customer's concerns, covering all major facets of the main query.
+
+Therefore, the output meets the highest standard for breadth as per the rubric.
+
+<score>
+3
+</score>
+</feedback>
+```
+
+# OUTPUT
+<feedback>
+The generated sub-queries demonstrate excellent breadth and effectively cover all major aspects of the main query. They break down the complex inquiry into manageable parts that address each key point raised by the customer.
+
+1. **False Positive Rate**: The sub-queries directly address the current false positive rate and its changes over time, which is a central concern of the main query.
+2. **Model Updates and Tweaks**: They inquire about the specific changes made to the AI model and their impact, which is crucial for understanding the root cause of the issue.
+3. **Customer Effort and Support Interaction**: They explore the customer's efforts to resolve the issue through reports and support interactions, which is important for context.
+4. **Review and Roadmap**: There's a clear question about initiating a comprehensive review and the process for reducing false positives, addressing both the immediate and long-term concerns.
+5. **Compensation and Financial Implications**: The sub-queries address the potential for compensation, covering the financial and resource implications for the customer.
+6. **Future Impact and New Product Launch**: They also consider the impact on the upcoming launch of the new line of premium credit cards, ensuring that the solution is aligned with the company's future plans.
+
+Each of these aspects is represented in the sub-queries, providing a thorough and comprehensive approach to addressing the customer's concerns. The sub-queries ensure that no significant part of the main query is overlooked, and they collectively offer a well-rounded exploration of the topic.
+
+Given the comprehensive nature of the sub-queries, they would allow for a thorough and well-rounded investigation of the customer's concerns, covering all major facets of the main query.
+
+Therefore, the output meets the highest standard for breadth as per the rubric.
+
+</feedback>
+<score>
+3
+</score>
+</output>
+```
+
+# INPUT
+<query>
+We implemented your AI-powered fraud detection software (license #FD-345678) across our banking network three months ago, but we're seeing an alarming increase in false positives that are significantly impacting our customer experience. Initially, we had a manageable 5% false positive rate, but it has steadily climbed to 10%, then 15%,",3

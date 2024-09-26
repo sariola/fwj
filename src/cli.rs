@@ -29,8 +29,12 @@ pub struct Args {
     #[arg(long, default_value = "false")]
     pub last_result: bool,
 
+    /// Save only scores, not feedbacks
+#[arg(long, default_value = "false")]
+pub only_scores: bool,
+
     /// Set the concurrent batch size
-    #[arg(short = 'b', long, default_value = "10")]
+    #[arg(short = 'b', long, default_value = "1")]
     pub batch_size: usize,
 }
 

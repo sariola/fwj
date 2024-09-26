@@ -7,7 +7,7 @@ mod models;
 mod download;
 mod cli;
 
-use models::{AppError, Config, TaskConfig};
+use models::{AppError, Config, TaskConfig, IoItem};
 use models::{FILE_LOCKS, SCORE_REGEX, RUBRICS_DIR, MAX_RETRIES, CACHE_DIR};
 use models::{DATA_URL, RUBRIC_URL, DATA_DIR};
 use std::path::Path;
@@ -33,15 +33,27 @@ use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use std::time::Instant;
 use std::sync::Arc;
 use std::fs::File;
-use std::io::Write;
+use csv::{Reader, Writer, QuoteStyle};
+use tokio::io::AsyncReadExt;
+use csv::{WriterBuilder, ReaderBuilder};
+use std::io::{Read, Write, BufReader, BufWriter};
+use std::str::from_utf8;
+use serde::{Serialize, Deserialize};
 
 impl Config {
     pub fn from_file(path: &str) -> Result<Self, AppError> {
         let config_str = std::fs::read_to_string(path)
             .map_err(|e| AppError::ConfigError(format!("Failed to read config file {}: {}", path, e)))?;
 
-        let config: Config = serde_yml::from_str(&config_str)
-            .map_err(|e| AppError::ConfigError(format!("Failed to parse config file {}: {}", path, e)))?;
+        let config: Config = if path.ends_with(".yaml") || path.ends_with(".yml") {
+            serde_yml::from_str(&config_str)
+                .map_err(|e| AppError::ConfigError(format!("Failed to parse YAML config file {}: {}", path, e)))?
+        } else if path.ends_with(".json") {
+            serde_json::from_str(&config_str)
+                .map_err(|e| AppError::ConfigError(format!("Failed to parse JSON config file {}: {}", path, e)))?
+        } else {
+            return Err(AppError::ConfigError(format!("Unsupported config file format: {}", path)));
+        };
 
         Ok(config)
     }
@@ -111,20 +123,19 @@ async fn main() -> Result<(), AppError> {
     };
 
     // Handle rubric file
-    let rubric_path = if args.rubric == "fetch" {
-        let path = format!("{}/subquery-decomp.jinja", config.rubrics_dir);
-        if !Path::new(&path).exists() {
-            download_file(RUBRIC_URL, &path).await?;
+    let rubric_template = if args.rubric == "fetch" {
+        let path = Path::new(&config.rubrics_dir).join("subquery-decomp.jinja");
+        if !path.exists() {
+            download_file(RUBRIC_URL, path.to_str().unwrap()).await?;
         }
-        path
+        path.to_str().unwrap().to_string()
     } else {
         args.rubric.clone()
     };
 
-    // Update the config with the correct paths
     config.tasks = vec![models::TaskConfig {
         data: data_path,
-        rubric_template: rubric_path,
+        rubric_template,
     }];
 
     // Ensure we have tasks to process
@@ -180,28 +191,21 @@ async fn main() -> Result<(), AppError> {
 }
 
 async fn process_task(task_config: &TaskConfig, batch_size: usize) -> Result<(u32, String), AppError> {
-    // Read and parse the JSON data
-    // temporary
-    let data = include_str!("../data/subquery-data.json");
-    // let data = match std::fs::read_to_string(&task_config.data) {
-    //     Ok(content) => content,
-    //     Err(e) => return Err(AppError::FileReadError(format!("Failed to read data file '{}': {}", task_config.data, e))),
-    // };
+    let data = fs::read_to_string(&task_config.data).await?;
 
     if data.trim().is_empty() {
-        return Err(AppError::JsonParseError("Data file is empty".to_string()));
+        return Err(AppError::CustomError("Data file is empty".to_string()));
     }
 
-    let mut json_data: Vec<serde_json::Value> = match json_from_str(&data) {
-        Ok(parsed) => parsed,
-        Err(e) => return Err(AppError::JsonParseError(format!("Failed to parse JSON from '{}': {}", task_config.data, e))),
+    let file_format = detect_file_type(&task_config.data)?;
+
+    let mut items: Vec<IoItem> = match file_format.as_str() {
+        "json" => read_json(&task_config.data)?,
+        "csv" => read_csv(&task_config.data)?,
+        _ => return Err(AppError::ConfigError(format!("Unsupported file format: {}", file_format))),
     };
 
-    // Read the rubric template
-    // let rubric = std::fs::read_to_string(&task_config.rubric_template)?;
-    let rubric = include_str!("../rubrics/subquery-decomp.jinja");
-
-    let total_items = json_data.len();
+    let total_items = items.len();
     let concurrent_batch_size = batch_size;
 
     println!("\n{}", style(format!("Processing: {} entries", total_items)).yellow().bold());
@@ -234,7 +238,7 @@ async fn process_task(task_config: &TaskConfig, batch_size: usize) -> Result<(u3
     // Create the main progress bar and add it last
     let main_progress_bar = multi_progress.add(ProgressBar::new(total_items as u64));
     main_progress_bar.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{bar:80.green/black}] {pos}/{len} ({percent}%) {eta}")
+        .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.green/black}] {pos}/{len} ({percent}%) {eta}")
         .unwrap()
         .with_key("elapsed_precise", |state: &indicatif::ProgressState, w: &mut dyn std::fmt::Write| {
             write!(w, "{:02}:{:02}:{:03}",
@@ -264,8 +268,10 @@ async fn process_task(task_config: &TaskConfig, batch_size: usize) -> Result<(u3
     let parsing_failures = Arc::new(Mutex::new(0u32));
     let last_result = Arc::new(Mutex::new(String::new()));
 
+    let rubric = load_rubric(&task_config.rubric_template).await?;
+
     // Process all items in the JSON array concurrently, limited to concurrent_batch_size at a time
-    let results: Vec<Result<(), AppError>> = stream::iter(json_data.iter_mut().enumerate())
+    let results: Vec<Result<(), AppError>> = stream::iter(items.iter_mut().enumerate())
         .map(|(index, item)| {
             let rubric_clone = rubric.clone();
             let item_progress = item_progress_bars[index % concurrent_batch_size].clone();
@@ -275,8 +281,8 @@ async fn process_task(task_config: &TaskConfig, batch_size: usize) -> Result<(u3
             let last_result = Arc::clone(&last_result);
 
             async move {
-                let input = item["input"].as_str().unwrap_or_default();
-                let output = item["output"].as_str().unwrap_or_default();
+                let input = item.input.clone();
+                let output = item.output.clone();
                 let context = context! {
                     input => input,
                     output => output,
@@ -289,26 +295,26 @@ async fn process_task(task_config: &TaskConfig, batch_size: usize) -> Result<(u3
                 // Log the llamafile output for debugging
                 debug!("Llamafile output for item {}: {}", index + 1, llamafile_output);
 
-                item["feedback"] = serde_json::Value::String(llamafile_output.to_string());
+                item.feedback = Some(llamafile_output.trim().to_string());
 
                 match SCORE_REGEX.captures(&llamafile_output) {
                     Some(captures) => {
                         if let Some(score_match) = captures.get(1) {
                             if let Ok(score_num) = score_match.as_str().trim().parse::<i32>() {
                                 debug!("Extracted score: {}", score_num);
-                                item["score"] = serde_json::Value::Number(serde_json::Number::from(score_num));
+                                item.score = Some(score_num);
                             } else {
                                 error!("Failed to parse score as integer");
-                                item["score"] = serde_json::Value::Null;
+                                item.score = None;
                             }
                         } else {
                             error!("Score regex matched but couldn't extract content");
-                            item["score"] = serde_json::Value::Null;
+                            item.score = None;
                         }
                     }
                     None => {
                         error!("No score found in llamafile output");
-                        item["score"] = serde_json::Value::Null;
+                        item.score = None;
                     }
                 }
 
@@ -347,8 +353,11 @@ async fn process_task(task_config: &TaskConfig, batch_size: usize) -> Result<(u3
     let last_result = last_result.lock().await.clone();
 
     // Write the updated JSON data back to the file
-    let updated_json = serde_json::to_string_pretty(&json_data)?;
-    std::fs::write(&task_config.data, updated_json)?;
+    match file_format.as_str() {
+        "json" => write_json(&items, &task_config.data)?,
+        "csv" => write_csv(&items, &task_config.data)?,
+        _ => return Err(AppError::ConfigError(format!("Unsupported file format for saving: {}", file_format))),
+    }
 
     println!("\n\n{}", style("Task Summary:").yellow().bold());
     println!("┌─────────────────┬────────────────────────────────┐");
@@ -366,6 +375,18 @@ async fn process_task(task_config: &TaskConfig, batch_size: usize) -> Result<(u3
     Ok((parsing_failures, last_result))
 }
 
+async fn load_rubric(rubric_template: &str) -> Result<String, AppError> {
+    if Path::new(rubric_template).exists() {
+        // If it's a file path, read the file
+        let content = tokio::fs::read_to_string(rubric_template).await
+            .map_err(|e| AppError::FileReadError(format!("Failed to read rubric file '{}': {}", rubric_template, e)))?;
+        Ok(normalize_line_endings(&content))
+    } else {
+        // If it's not a file path, assume it's the content itself
+        Ok(normalize_line_endings(rubric_template))
+    }
+}
+
 pub async fn update_json_file(
     file_path: &str,
     index: usize,
@@ -378,7 +399,10 @@ pub async fn update_json_file(
         .or_insert_with(|| Mutex::new(()));
     let _guard = file_lock.lock().await;
 
-    let file_content = fs::read_to_string(file_path).await?;
+    let file_content = fs::read(file_path).await?;
+    let file_content = String::from_utf8(file_content)
+        .map_err(|e| AppError::CustomError(format!("Failed to decode file content as UTF-8: {}", e)))?;
+
     let mut json: Value = serde_json::from_str(&file_content)?;
 
     if let Some(array) = json.as_array_mut() {
@@ -396,7 +420,7 @@ pub async fn update_json_file(
     }
 
     let updated_content = serde_json::to_string_pretty(&json)?;
-    fs::write(file_path, updated_content).await?;
+    fs::write(file_path, updated_content.as_bytes()).await?;
 
     Ok(())
 }
@@ -419,18 +443,32 @@ pub async fn execute_llamafile_with_retries(
     for attempt in 1..=max_retries {
         debug!("Executing llamafile, attempt {}/{}", attempt, max_retries);
 
-        let output =
-            tokio::process::Command::new("bash")
-                .arg("-c")
-                .arg(format!(
-                ".cache/flow-judge.llamafile -c 8192 -ngl 32 --temp 0.1 -n 1000 -t {} -p \"{}\"",
-                thread::available_parallelism().map(|p| p.get()).unwrap_or(1),
-                input
-            ))
+        let output = if cfg!(target_os = "windows") {
+            tokio::process::Command::new("cmd")
+                .args(&["/C", &format!(
+                    "{} -c 8192 -ngl 32 --temp 0.1 -n 1000 -t {} -p \"{}\"",
+                    llamafile_path.display(),
+                    thread::available_parallelism().map(|p| p.get()).unwrap_or(1),
+                    input
+                )])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .output()
-                .await?;
+                .await?
+        } else {
+            tokio::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!(
+                    "{} -c 8192 -ngl 32 --temp 0.1 -n 1000 -t {} -p \"{}\"",
+                    llamafile_path.display(),
+                    thread::available_parallelism().map(|p| p.get()).unwrap_or(1),
+                    input
+                ))
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output()
+                .await?
+        };
 
         if output.status.success() {
             debug!("Llamafile execution successful");
@@ -455,10 +493,9 @@ pub async fn execute_llamafile_with_retries(
 }
 
 pub async fn fetch_rubrics(task_config: &TaskConfig) -> Result<String, AppError> {
-    let rubric_path = format!("{}/{}", RUBRICS_DIR, task_config.rubric_template);
-    fs::read_to_string(&rubric_path)
-        .await
-        .map_err(AppError::from)
+    let rubric_path = PathBuf::from(RUBRICS_DIR).join(&task_config.rubric_template);
+    let rubric_content = fs::read_to_string(&rubric_path).await?;
+    Ok(rubric_content)
 }
 
 pub fn extract_input_names_from_rubric(rubric: &str) -> Vec<String> {
@@ -488,7 +525,7 @@ pub fn populate_template(rubric: &str, context: &minijinja::value::Value) -> Res
 }
 
 fn save_last_result(result: &str, cache_dir: &str) -> Result<(), AppError> {
-    let result_file_path = format!("{}/last_result.txt", cache_dir);
+    let result_file_path = PathBuf::from(cache_dir).join("last_result.txt");
     let mut file = File::create(&result_file_path)
         .map_err(|e| AppError::FileWriteError(format!("Failed to create last result file: {}", e)))?;
 
@@ -499,7 +536,99 @@ fn save_last_result(result: &str, cache_dir: &str) -> Result<(), AppError> {
 }
 
 fn read_last_result(cache_dir: &str) -> Result<String, AppError> {
-    let result_file_path = format!("{}/last_result.txt", cache_dir);
+    let result_file_path = PathBuf::from(cache_dir).join("last_result.txt");
     std::fs::read_to_string(&result_file_path)
         .map_err(|e| AppError::FileReadError(format!("Failed to read last result file: {}", e)))
+}
+
+// Helper function to read file as UTF-8
+async fn read_file_as_utf8(path: &PathBuf) -> Result<String, AppError> {
+    let mut file = tokio::fs::File::open(path).await
+        .map_err(|e| AppError::FileReadError(format!("Failed to open file '{}': {}", path.display(), e)))?;
+
+    let mut content = Vec::new();
+    file.read_to_end(&mut content).await
+        .map_err(|e| AppError::FileReadError(format!("Failed to read file '{}': {}", path.display(), e)))?;
+
+    String::from_utf8(content)
+        .map_err(|e| AppError::EncodingError(format!("File '{}' is not valid UTF-8: {}", path.display(), e)))
+}
+
+// Helper function to normalize line endings
+fn normalize_line_endings(s: &str) -> String {
+    s.replace("\r\n", "\n")
+}
+
+fn detect_file_type(file_path: &str) -> Result<String, AppError> {
+    let path = Path::new(file_path);
+    match path.extension().and_then(|s| s.to_str()) {
+        Some("json") => Ok("json".to_string()),
+        Some("csv") => Ok("csv".to_string()),
+        Some(ext) => Err(AppError::ConfigError(format!("Unsupported file type: {}", ext))),
+        None => Err(AppError::ConfigError("File has no extension".to_string())),
+    }
+}
+
+fn write_csv(items: &[IoItem], file_path: &str) -> Result<(), AppError> {
+    let file = File::create(file_path)
+        .map_err(|e| AppError::FileWriteError(format!("Failed to create file '{}': {}", file_path, e)))?;
+
+    let mut writer = WriterBuilder::new()
+        .from_writer(file);
+
+    for item in items {
+        writer.serialize(item)
+            .map_err(|e| AppError::CsvWriteError(format!("Failed to write CSV record: {}", e)))?;
+    }
+
+    writer.flush()
+        .map_err(|e| AppError::FileWriteError(format!("Failed to flush CSV writer: {}", e)))?;
+    Ok(())
+}
+
+fn read_csv(file_path: &str) -> Result<Vec<IoItem>, AppError> {
+    let file = File::open(file_path)
+        .map_err(|e| AppError::FileReadError(format!("Failed to open file '{}': {}", file_path, e)))?;
+
+    let mut reader = ReaderBuilder::new()
+        .from_reader(file);
+
+    let items: Result<Vec<IoItem>, _> = reader.deserialize().collect();
+    items.map_err(|e| AppError::CsvReadError(format!("Failed to read CSV: {}", e)))
+}
+
+fn write_json(items: &[IoItem], file_path: &str) -> Result<(), AppError> {
+    let file = File::create(file_path)
+        .map_err(|e| AppError::FileWriteError(format!("Failed to create file '{}': {}", file_path, e)))?;
+    let buf_writer = BufWriter::new(file);
+
+    serde_json::to_writer_pretty(buf_writer, items)
+        .map_err(|e| AppError::JsonWriteError(format!("Failed to write JSON: {}", e)))?;
+
+    Ok(())
+}
+
+fn read_json(file_path: &str) -> Result<Vec<IoItem>, AppError> {
+    let file = File::open(file_path)
+        .map_err(|e| AppError::FileReadError(format!("Failed to open file '{}': {}", file_path, e)))?;
+    let buf_reader = BufReader::new(file);
+
+    let items: Vec<IoItem> = serde_json::from_reader(buf_reader)
+        .map_err(|e| AppError::JsonParseError(format!("Failed to parse JSON: {}", e)))?;
+
+    // Ensure UTF-8 validity for all string fields
+    items.into_iter().map(|item| {
+        Ok(IoItem {
+            input: ensure_utf8(&item.input)?,
+            output: ensure_utf8(&item.output)?,
+            feedback: item.feedback.map(|f| ensure_utf8(&f)).transpose()?,
+            score: item.score,
+        })
+    }).collect()
+}
+
+fn ensure_utf8(s: &str) -> Result<String, AppError> {
+    from_utf8(s.as_bytes())
+        .map(|s| s.to_string())
+        .map_err(|e| AppError::EncodingError(format!("Invalid UTF-8 sequence: {}", e)))
 }

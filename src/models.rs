@@ -24,8 +24,13 @@ lazy_static! {
     pub static ref FEEDBACK_REGEX: Regex = Regex::new(FEEDBACK_REGEX_PATTERN).unwrap();
 }
 
+
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error("CSV write error: {0}")]
+    CsvWriteError(String),
+    #[error("CSV read error: {0}")]
+    CsvReadError(String),
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
     #[error("JSON error: {0}")]
@@ -38,6 +43,8 @@ pub enum AppError {
     CommandExecutionError(String),
     #[error("JSON parse error: Invalid structure")]
     JsonParseError(String),
+    #[error("JSON write error: Invalid structure")]
+    JsonWriteError(String),
     #[error("File read error: {0}")]
     FileReadError(String),
     #[error("File write error: {0}")]
@@ -58,6 +65,10 @@ pub enum AppError {
     ParseError(String),
     #[error("Download error: {0}")]
     DownloadError(String),
+    #[error("CSV parse error: {0}")]
+    CsvParseError(String),
+    #[error("Encoding error: {0}")]
+    EncodingError(String),
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,16 +93,18 @@ pub fn default_cache_dir() -> String { CACHE_DIR.to_string() }
 pub fn default_rubrics_dir() -> String { RUBRICS_DIR.to_string() }
 pub fn default_data_dir() -> String { DATA_DIR.to_string() }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TaskConfig {
     pub data: String,
     pub rubric_template: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IoItem {
     pub input: String,
     pub output: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub feedback: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub score: Option<i32>,
 }
