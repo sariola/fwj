@@ -18,32 +18,83 @@ build-release-static-macos-universal2:
     sudo chown -R $USER:$(id -gn $USER) target/universal2-apple-darwin
     sudo chown -R $USER:$(id -gn $USER) target/aarch64-apple-darwin
 
-# Create a new GitHub release
+# Create a new GitHub release or update an existing one
 create-release VERSION:
-    gh release create v{{VERSION}} --generate-notes
+    @echo "Creating or updating release v{{VERSION}}..."
+    gh release view v{{VERSION}} > /dev/null 2>&1 && \
+    (echo "Release v{{VERSION}} already exists. Updating..." && \
+     gh release edit v{{VERSION}} --notes "$(gh release view v{{VERSION}} --json body -q .body)") || \
+    (echo "Checking if tag v{{VERSION}} exists..." && \
+     (git ls-remote --exit-code --tags origin v{{VERSION}} > /dev/null 2>&1 && \
+      (echo "Tag v{{VERSION}} exists but no release. Creating release..." && \
+       gh release create v{{VERSION}} --generate-notes) || \
+      (echo "Creating new tag and release v{{VERSION}}..." && \
+       git tag v{{VERSION}} && \
+       git push origin v{{VERSION}} && \
+       gh release create v{{VERSION}} --generate-notes)))
+    @echo "Release created or updated. Waiting for 5 seconds..."
+    sleep 5
+
+# Compress binaries
+compress-binaries VERSION:
+    @echo "Compressing binaries..."
+    mkdir -p target/release-packages
+    tar -czf target/release-packages/fwj-{{VERSION}}-x86_64-unknown-linux-musl.tar.gz -C target/x86_64-unknown-linux-musl/release fwj
+    tar -czf target/release-packages/fwj-{{VERSION}}-aarch64-unknown-linux-musl.tar.gz -C target/aarch64-unknown-linux-musl/release fwj
+    tar -czf target/release-packages/fwj-{{VERSION}}-x86_64-apple-darwin.tar.gz -C target/x86_64-apple-darwin/release fwj
+    tar -czf target/release-packages/fwj-{{VERSION}}-universal2-apple-darwin.tar.gz -C target/universal2-apple-darwin/release fwj
 
 # Upload built binaries to the GitHub release
 upload-release-assets VERSION:
-    gh release upload v{{VERSION}} \
-        target/x86_64-unknown-linux-musl/release/fwj \
-        target/aarch64-unknown-linux-musl/release/fwj \
-        target/x86_64-apple-darwin/release/fwj \
-        target/universal2-apple-darwin/release/fwj
+    @echo "Checking for compressed binary files..."
+    # Check if all files exist before uploading
+    [ -f "target/release-packages/fwj-{{VERSION}}-x86_64-unknown-linux-musl.tar.gz" ] || \
+    (echo "Error: x86_64-linux compressed binary not found" && exit 1)
 
+    [ -f "target/release-packages/fwj-{{VERSION}}-aarch64-unknown-linux-musl.tar.gz" ] || \
+    (echo "Error: aarch64-linux compressed binary not found" && exit 1)
+
+    [ -f "target/release-packages/fwj-{{VERSION}}-x86_64-apple-darwin.tar.gz" ] || \
+    (echo "Error: x86_64-macos compressed binary not found" && exit 1)
+
+    [ -f "target/release-packages/fwj-{{VERSION}}-universal2-apple-darwin.tar.gz" ] || \
+    (echo "Error: universal2-macos compressed binary not found" && exit 1)
+
+    @echo "All compressed binary files found."
+
+    # Check if release already has assets
+    gh release view v{{VERSION}} --json assets -q '.assets[].name' | grep -q ".tar.gz" && \
+    (echo "Release v{{VERSION}} already has assets. Do you want to overwrite them? (y/N)" && \
+     read -r response && \
+     if [ "$response" != "y" ] && [ "$response" != "Y" ]; then \
+         echo "Aborting upload process." && exit 1; \
+     fi) || true
+
+    @echo "Proceeding with upload..."
+
+    # If all files exist and user confirmed (if necessary), proceed with upload
     gh release upload v{{VERSION}} \
         --clobber \
-        target/x86_64-unknown-linux-musl/release/fwj#fwj-x86_64-unknown-linux-musl \
-        target/aarch64-unknown-linux-musl/release/fwj#fwj-aarch64-unknown-linux-musl \
-        target/x86_64-apple-darwin/release/fwj#fwj-x86_64-apple-darwin \
-        target/universal2-apple-darwin/release/fwj#fwj-universal2-apple-darwin
+        target/release-packages/fwj-{{VERSION}}-x86_64-unknown-linux-musl.tar.gz \
+        target/release-packages/fwj-{{VERSION}}-aarch64-unknown-linux-musl.tar.gz \
+        target/release-packages/fwj-{{VERSION}}-x86_64-apple-darwin.tar.gz \
+        target/release-packages/fwj-{{VERSION}}-universal2-apple-darwin.tar.gz || \
+    (echo "Error uploading assets. Checking release status..." && \
+     gh release view v{{VERSION}} && \
+     exit 1)
+
+    @echo "Asset upload completed successfully."
 
 # Perform a full release process
 release VERSION:
+    @echo "Starting release process for version {{VERSION}}..."
     just build-release-static
     just build-release-static-macos
     just build-release-static-macos-universal2
+    just compress-binaries {{VERSION}}
     just create-release {{VERSION}}
     just upload-release-assets {{VERSION}}
+    @echo "Release process completed."
 
 # Release process instructions
 @release-instructions:
