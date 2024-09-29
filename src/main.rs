@@ -24,7 +24,7 @@ use futures::stream::{self, StreamExt};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::{debug, error, info, warn};
 use minijinja::{context, Environment};
-use mistralrs::{IsqType, TextMessageRole, TextMessages, TextModelBuilder, PagedAttentionMetaBuilder, MemoryGpuConfig};
+use mistralrs::{IsqType, GgufModelBuilder, TextMessageRole, TextMessages, TextModelBuilder, PagedAttentionMetaBuilder, MemoryGpuConfig};
 use regex::Regex;
 use serde_json::{self, Value};
 use std::fs::File;
@@ -81,17 +81,14 @@ fn display_last_result(result: &str) {
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
-    let model = TextModelBuilder::new("flowaicom/Flow-Judge-v0.1")
-        .with_isq(IsqType::Q8_0)
-        .with_logging()
-        .with_paged_attn(|| {
-            PagedAttentionMetaBuilder::default()
-                .with_block_size(32)
-                .with_gpu_memory(MemoryGpuConfig::ContextSize(1024))
-                .build()
-        })?
-        .build()
-        .await?;  // This line now returns the Model or propagates the error
+    let model = GgufModelBuilder::new(
+        "flowaicom/Flow-Judge-v0.1-GGUF",
+        vec!["Flow-Judge-v0.1-Q4_K_M.gguf"],
+    )
+    .with_tok_model_id("flowaicom/Flow-Judge-v0.1")
+    .with_logging()
+    .build()
+    .await?;
 
     let messages = TextMessages::new()
         .add_message(

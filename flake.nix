@@ -130,7 +130,6 @@
           openssl
           openssl.dev
           pkgsStatic.oniguruma
-          musl
           libiconv
         ];
         onigurumaStatic = pkgsStatic.oniguruma;
@@ -158,6 +157,9 @@
             # CUDA_COMPUTE_CAP = "8.9";
             CUDA_TOOLKIT_ROOT_DIR = pkgs.lib.getDev pkgs.cudaPackages_12_4.cuda_cudart;
 
+            CUDNN_LIB = "${pkgs.cudaPackages_12_4.cudnn}/lib";
+            CUDNN_INCLUDE_DIR = "${pkgs.cudaPackages_12_4.cudnn}/include";
+
             NVCC_PREPEND_FLAGS = [
               "-I${pkgs.lib.getDev pkgs.cudaPackages_12_4.cuda_cudart}/include"
               "-I${pkgs.lib.getDev pkgs.cudaPackages_12_4.cudnn}/include"
@@ -167,6 +169,7 @@
             NVCC_APPEND_FLAGS = [
               "-L${pkgs.cudaPackages_12_4.cuda_cudart.static}/lib"
               "-L${pkgs.cudaPackages_12_4.cudnn}/lib"
+              "-L${pkgs.cudaPackages_12_4.cudnn.static}/lib"
               "-L${pkgs.cudaPackages_12_4.nccl}/lib"
               "-L${pkgs.cudaPackages_12_4.nvidia_fs}/lib"
               "-L${pkgs.cudaPackages_12_4.cuda_cudart}/lib"
@@ -178,17 +181,21 @@
             PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" (defaultDeps ++ cudaDeps ++ otherDeps);
             PKG_CONFIG_SYSROOT_DIR = "/";
             PKG_CONFIG = "${pkgs.pkg-config}/bin/pkg-config";
+            # CARGO_BUILD_TARGET = "x86_64-unknown-linux-musl";
+            # CC_x86_64_unknown_linux_musl = "${pkgsStatic.gcc}/bin/gcc";
+            # CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER = "${pkgsStatic.gcc}/bin/gcc";
             RUSTFLAGS = [
               "-C target-feature=+crt-static"
               "-L${onigurumaStatic}/lib"
               "-L${pkgs.cudaPackages_12_4.cuda_cudart}/lib"
+              "-L${pkgs.cudaPackages_12_4.cudnn}/lib"
               "-L${nvidia-p2p}/lib"
               "-L/run/opengl-drivers/lib"
               "-L/run/opengl-drivers/lib64"
               "-L/run/opengl-drivers/lib/nvidia"
               "-L/run/opengl-drivers/lib64/nvidia"
             ];
-            LD_LIBRARY_PATH = "/run/opengl-drivers/lib:${onigurumaStatic}/lib:${pkgs.cudaPackages_12_4.cuda_cudart}:${pkgs.lib.makeLibraryPath (cudaDeps ++ otherDeps)}/lib";
+            LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib:/run/opengl-drivers/lib:${onigurumaStatic}/lib:${pkgs.cudaPackages_12_4.cuda_cudart}/lib:${pkgs.lib.makeLibraryPath (cudaDeps ++ otherDeps)}/lib:${nvidia-p2p}/lib:/run/opengl-drivers/lib/nvidia:/run/opengl-drivers/lib64/nvidia";
 
             shellHook = ''
               set -eu
@@ -197,8 +204,9 @@
               export CUDA_PATH="${pkgs.cudaPackages_12_4.cudatoolkit}"
               export HF_HOME="/shelf/hf_home"
               export OMP_NUM_THREADS=32
+              export CUDNN_LIB="${pkgs.cudaPackages_12_4.cudnn}/lib"
+              export CUDNN_INCLUDE_DIR="${pkgs.cudaPackages_12_4.cudnn}/include"
             '';
-            # :${pkgs.glibc}/lib"
           };
         };
       };
