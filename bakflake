@@ -1,0 +1,252 @@
+{
+  description = "An FHS shell with conda and cuda.";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    naersk = {
+      url = "github:nix-community/naersk";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = inputs @ {
+    self,
+    nixpkgs,
+    naersk,
+    fenix,
+    flake-parts,
+    ...
+  }:
+    flake-parts.lib.mkFlake {inherit inputs;} {
+      systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
+      imports = [];
+      perSystem = {system, ...}: let
+        pkgs = import nixpkgs {
+          inherit system;
+          config = {
+            allowUnfree = true;
+            cudaSupport = true;
+            allowUnfreePredicate = pkg: true;
+            acceptLicense = true;
+          };
+        };
+        toolchain = with fenix.packages.${system};
+          combine [
+            complete.cargo
+            complete.rustc
+            complete.clippy-preview
+            complete.llvm-tools-preview
+            complete.rust-analyzer-preview
+            complete.rustfmt-preview
+            complete.miri-preview
+            targets."aarch64-unknown-linux-gnu".latest.rust-std
+            targets."aarch64-unknown-linux-musl".latest.rust-std
+            targets."x86_64-unknown-linux-gnu".latest.rust-std
+            targets."x86_64-unknown-linux-musl".latest.rust-std
+          ];
+
+        kernel = pkgs.linux_6_10.override {
+          argsOverride = rec {
+            src = pkgs.fetchurl {
+              url = "mirror://kernel/linux/kernel/v6.x/linux-${version}.tar.xz";
+              sha256 = "sha256-5ofnNbXrnvttZ7QkM8k/yRGBBqmVUU8GJlKHO16Am80=";
+            };
+            version = "6.10.10";
+            modDirVersion = "6.10.10";
+          };
+        };
+        nvidia-x11 = import /home/ks/configs/zappacosta/dotfiles/overlays/nvidia-x11 {
+          inherit
+            (pkgs)
+            lib
+            callPackage
+            fetchFromGitHub
+            fetchgit
+            fetchpatch
+            stdenv
+            pkgsi686Linux
+            ;
+          kernel = kernel;
+        };
+        nvidia-p2p = nvidia-x11.p2p;
+        pkgsMusl = pkgs.pkgsMusl;
+
+        cudaDeps = with pkgs; [
+          nvidia-p2p
+          cudaPackages_12_4.cuda_cudart
+          cudaPackages_12_4.cuda_cudart.static
+          cudaPackages_12_4.cudatoolkit
+          cudaPackages_12_4.cudnn
+          cudaPackages_12_4.nccl
+          cudaPackages_12_4.nccl-tests
+          cudaPackages_12_4.nvidia_fs
+        ];
+
+        defaultDeps = with pkgs; [
+          # Development tools
+          pkgsMusl.ruff
+          pkgs.nodejs
+          pyright
+          pkgsMusl.jq
+          (
+            if pkgsMusl ? uv
+            then pkgsMusl.uv
+            else uv
+          )
+
+          # Build tools and system utilities
+          pkgsMusl.autoconf
+          pkgsMusl.curl
+          pkgsMusl.file
+          (
+            if pkgsMusl ? git
+            then pkgsMusl.git
+            else git
+          )
+          pkgsMusl.cmake
+          pkgsMusl.gnumake
+          (
+            if pkgsMusl ? gnupg
+            then pkgsMusl.gnupg
+            else gnupg
+          )
+          pkgsMusl.gperf
+          pkgsMusl.libaio
+          pkgsMusl.libxml2
+          pkgsMusl.m4
+          pkgsMusl.ncurses5
+          pkgsMusl.pkg-config
+          pkgsMusl.musl
+          pkgsMusl.musl.dev
+
+          # System libraries
+          pkgsMusl.acl
+          pkgsMusl.attr
+          pkgsMusl.bzip2
+          pkgsMusl.expat
+          (
+            if pkgsMusl ? fuse3
+            then pkgsMusl.fuse3
+            else fuse3
+          )
+          pkgsMusl.icu
+          pkgsMusl.libsodium
+          pkgsMusl.libssh
+          nss
+          pkgsMusl.openssl
+          systemd
+          (
+            if pkgsMusl ? util-linux
+            then pkgsMusl.util-linux
+            else util-linux
+          )
+          pkgs.xz
+          pkgsMusl.zlib
+          pkgsMusl.zstd
+
+          # Process and system management
+          (
+            if pkgsMusl ? procps
+            then pkgsMusl.procps
+            else procps
+          )
+
+          # Utilities
+          pkgsMusl.unzip
+          pkgsMusl.wget
+
+          # Programming languages and tools
+          zig
+          pkgsMusl.libiconv
+
+          # CUDA and graphics related (keep non-musl)
+          freeglut
+          libGL
+          libGLU
+          vulkan-headers
+          vulkan-loader
+          vulkan-tools
+          xorg.libX11
+          xorg.libICE
+          xorg.libSM
+          xorg.libXext
+          xorg.libXi
+          xorg.libXmu
+          xorg.libXrandr
+          xorg.libXrender
+          xorg.libXv
+        ];
+
+        buildDeps = [
+                pkgs.pkgsMusl.pkg-config # Add pkg-config to buildInputs
+                pkgs.pkgsMusl.openssl # Add OpenSSL explicitly
+                pkgs.pkgsMusl.openssl.dev
+                pkgs.pkgsMusl.libiconv
+                pkgs.pkgsMusl.gcc
+                pkgs.pkgsMusl.glib
+        ];
+
+        NIX_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (
+          defaultDeps 
+          # ++ cudaDeps 
+          # ++ buildDeps
+        );
+      in {
+        _module.args = {inherit pkgs;};
+        legacyPackages = pkgs;
+        devShells = {
+          default = (pkgs.mkShell.override {stdenv = pkgs.gccStdenv;}) {
+            name = "fwj-env";
+            buildInputs =
+              [
+                pkgs.python311Packages.virtualenv
+                pkgs.python311Packages.venvShellHook
+              ]
+              ++ buildDeps
+              ++ defaultDeps
+              ++ cudaDeps;
+            packages = buildDeps ++ defaultDeps ++ cudaDeps;
+            NIX_LD_LIBRARY_PATH = NIX_LD_LIBRARY_PATH;
+            # LD_LIBRARY_PATH = NIX_LD_LIBRARY_PATH;
+            HF_HOME = "/shelf/hf_home";
+            HF_TOKEN = builtins.getEnv "HF_TOKEN";
+            # NVCC_APPEND_FLAGS = "-L${pkgs.cudaPackages_12_4.cuda_cudart.static}/lib -L${pkgs.cudaPackages_12_4.cudnn}/lib -L${pkgs.cudaPackages_12_4.nccl}/lib -L${pkgs.cudaPackages_12_4.nvidia_fs}/lib -L${pkgs.cudaPackages_12_4.cuda_cudart}/lib -L${pkgs.cudaPackages_12_4.cudatoolkit}/lib";
+            # NVCC_CCBIN = "${pkgs.pkgsMusl.gcc}/bin";
+            NVCC_PREPEND_FLAGS = "--compiler-bindir ${pkgs.pkgsMusl.gcc}/bin -I${pkgs.pkgsMusl.gccStdenv.cc.cc}/include";
+            # TORCH_CUDA_ARCH_LIST = "8.9"; # support for 4090 not to compile useless compatibilities
+            # TRITON_LIBCUDA_PATH = "${nvidia-p2p}/lib/libcuda.so";
+            # NIX_LD = pkgs.lib.fileContents "${pkgs.pkgsMusl.gccStdenv.cc}/nix-support/dynamic-linker";
+            CUDA_PATH = "${pkgs.cudaPackages_12_4.cudatoolkit}";
+            TORCH_USE_CUDA_DSA = "1";
+            CUDA_VISIBLE_DEVICES = "0,1,2";
+
+            # Add pkg-config related environment variables
+            # PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" (defaultDeps ++ cudaDeps ++ buildDeps);
+            # PKG_CONFIG_SYSROOT_DIR = "/";
+
+            shellHook = ''
+              # export LD_LIBRARY_PATH=$NIX_LD_LIBRARY_PATH
+              export TAILSCALE_IP=$(tailscale ip -4 2>/dev/null)
+              export HF_TOKEN=${builtins.getEnv "HF_TOKEN"}
+              export CUDA_PATH="${pkgs.cudaPackages_12_4.cudatoolkit}"
+              export PATH="${pkgs.cudaPackages_12_4.cudatoolkit}/bin:$PATH"
+              export HF_HOME="/shelf/hf_home"
+              export OMP_NUM_THREADS=32
+
+              # Set up pkg-config wrapper for cross-compilation
+              # export PKG_CONFIG="${pkgs.pkgsMusl.pkg-config}/bin/pkg-config"
+              # export PKG_CONFIG_PATH="$PKG_CONFIG_PATH"
+              # export PKG_CONFIG_SYSROOT_DIR="$PKG_CONFIG_SYSROOT_DIR"
+              #export RUST_LINKER="-C linker=${pkgs.pkgsMusl.stdenv.cc}/bin/ld"
+            '';
+          };
+        };
+      };
+    };
+}

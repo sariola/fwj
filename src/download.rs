@@ -2,23 +2,25 @@ use crate::AppError;
 use crate::Config;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
+use log::info;
 use reqwest::Client;
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
-use std::os::unix::fs::PermissionsExt;
-use std::collections::HashMap;
-use tokio::fs::OpenOptions;
 use serde_json::{json, Value};
-use tokio::io::{AsyncSeekExt, AsyncReadExt};
-use log::{info};
-use tokio::fs;
+use std::collections::HashMap;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use tokio::fs;
+use tokio::fs::File;
+use tokio::fs::OpenOptions;
+use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 use crate::models::LLAMAFILE_LOCK_URL;
 
 pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppError> {
-    println!("{}",
-        style("
+    println!(
+        "{}",
+        style(
+            "
 
              F   L   O   W   A   I
 
@@ -30,7 +32,10 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
     ⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⡿⠃⠀⢀⣴⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀
     ⠀⠀⠀⠀⠀⠀⠀⠸⣿⡿⠋⠀⠀⢰⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀
     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀
-    ").white());
+    "
+        )
+        .white()
+    );
 
     println!("{}", style("            --------------------------------------------------------------------------------").white().dim());
 
@@ -50,16 +55,22 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
 
     println!("{}", style("            --------------------------------------------------------------------------------").white().dim());
 
-    println!("{}", style("
+    println!(
+        "{}",
+        style(
+            "
             We won't show this notice again. Unless you delete your cache.
 
             Which, by the way, lives here: ~/.cache/fwj/
 
             Press any key to continue.
-    ").white().dim());
+    "
+        )
+        .white()
+        .dim()
+    );
 
     println!("{}", style("            ❤\n").red());
-
 
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
@@ -80,7 +91,10 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
         info!("Existing llamafile found. Verifying...");
 
         if verify_file(&file_path, &lock_file_path).await? {
-            info!("{}", style("Verification passed. Using existing llamafile."));
+            info!(
+                "{}",
+                style("Verification passed. Using existing llamafile.")
+            );
             return Ok(());
         } else {
             info!("Verification failed. Re-downloading llamafile.");
@@ -89,16 +103,21 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
 
     println!(
         "{}",
-        style("Downloading Flow-Judge-v0.1 quantized to Q4_K_M and converted to llamafile format..")
-            .green()
-            .bold()
+        style(
+            "Downloading Flow-Judge-v0.1 quantized to Q4_K_M and converted to llamafile format.."
+        )
+        .green()
+        .bold()
     );
     println!("\n{}", style("File details:").yellow());
     println!("  Name: {}", style("flow-judge.llamafile").green());
     println!("  Size: {}", style("2.4 GB").green());
     println!("  URL: {}", style(&config.llamafile_url).green());
     println!("  Date added to hub: {}", style("25.09.2024").green());
-    println!("  SHA256: {}", style("4845b598e88dbae320d2773edc15b52e054a53dd3a64b069121c33c3806c2dec").green());
+    println!(
+        "  SHA256: {}",
+        style("4845b598e88dbae320d2773edc15b52e054a53dd3a64b069121c33c3806c2dec").green()
+    );
     println!("  Llamafile version: {}\n", style("v0.8.13").green());
 
     // Clone the URL before moving it into the async block
@@ -138,7 +157,9 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
     pb.finish_with_message("Download completed");
 
     // Set executable permissions
-    let mut perms = tokio::fs::metadata(file_path.to_str().unwrap()).await?.permissions();
+    let mut perms = tokio::fs::metadata(file_path.to_str().unwrap())
+        .await?
+        .permissions();
     perms.set_mode(0o755);
     tokio::fs::set_permissions(file_path.to_str().unwrap(), perms).await?;
 
@@ -151,7 +172,10 @@ pub async fn download_flow_judge_llamafile(config: &Config) -> Result<(), AppErr
             .green()
             .bold()
     );
-    println!("Placed into: {}\n", style(file_path.to_str().unwrap()).yellow());
+    println!(
+        "Placed into: {}\n",
+        style(file_path.to_str().unwrap()).yellow()
+    );
     Ok(())
 }
 
@@ -171,10 +195,7 @@ async fn fetch_and_save_lock_file(_url: &str, lock_file_path: &PathBuf) -> Resul
 }
 
 async fn set_download_complete_flag(file_path: &str) -> Result<(), AppError> {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .open(file_path)
-        .await?;
+    let mut file = OpenOptions::new().write(true).open(file_path).await?;
 
     let metadata = json!({
         "download_complete": true,
@@ -183,7 +204,8 @@ async fn set_download_complete_flag(file_path: &str) -> Result<(), AppError> {
 
     // Write metadata to the end of the file
     file.seek(std::io::SeekFrom::End(0)).await?;
-    file.write_all(serde_json::to_string(&metadata)?.as_bytes()).await?;
+    file.write_all(serde_json::to_string(&metadata)?.as_bytes())
+        .await?;
 
     Ok(())
 }
@@ -191,7 +213,8 @@ async fn set_download_complete_flag(file_path: &str) -> Result<(), AppError> {
 async fn verify_file(file_path: &PathBuf, lock_file_path: &PathBuf) -> Result<bool, AppError> {
     info!("Starting verification process");
 
-    let lock_content = tokio::fs::read_to_string(lock_file_path).await
+    let lock_content = tokio::fs::read_to_string(lock_file_path)
+        .await
         .map_err(|e| {
             info!("Failed to read lock file: {}. Will download.", e);
             AppError::IoError(e)
@@ -204,7 +227,8 @@ async fn verify_file(file_path: &PathBuf, lock_file_path: &PathBuf) -> Result<bo
 
     info!("Lock file content: {}", lock_content);
 
-    let expected_hash = lock_content.lines()
+    let expected_hash = lock_content
+        .lines()
         .find(|line| line.starts_with("oid sha256:"))
         .and_then(|line| line.split(':').nth(1))
         .ok_or_else(|| AppError::ParseError("Failed to parse hash from lock file".to_string()))?;
@@ -252,7 +276,10 @@ pub async fn download_file(url: &str, file_path: &str) -> Result<(), AppError> {
 
     // Check if the file already exists
     if tokio::fs::metadata(file_path).await.is_ok() {
-        println!("{}", style(format!("File already exists at: {}", file_path)).yellow());
+        println!(
+            "{}",
+            style(format!("File already exists at: {}", file_path)).yellow()
+        );
         return Ok(());
     }
 
@@ -260,7 +287,10 @@ pub async fn download_file(url: &str, file_path: &str) -> Result<(), AppError> {
     let response = client.get(url).send().await?;
 
     if !response.status().is_success() {
-        return Err(AppError::DownloadError(format!("Failed to download file: HTTP {}", response.status())));
+        return Err(AppError::DownloadError(format!(
+            "Failed to download file: HTTP {}",
+            response.status()
+        )));
     }
 
     let content = response.bytes().await?;

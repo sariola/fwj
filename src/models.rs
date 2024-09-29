@@ -1,10 +1,11 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use tokio::sync::Mutex;
+use dirs;
 use lazy_static::lazy_static;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
-use dirs;
+use tokio::sync::Mutex;
+use thiserror::Error;
 
 // Constants
 pub const LLAMAFILE_URL: &str =
@@ -16,8 +17,10 @@ pub const SCORE_REGEX_PATTERN: &str = r"<score>\s*(\d+)\s*</score>";
 pub const FEEDBACK_REGEX_PATTERN: &str = r"(?s)<feedback>(.+?)</feedback>";
 pub const RUBRICS_DIR: &str = "./rubrics";
 pub const DATA_DIR: &str = "./data";
-pub const DATA_URL: &str = "https://raw.githubusercontent.com/sariola/fwj/refs/heads/main/data/subquery-data.json";
-pub const RUBRIC_URL: &str = "https://raw.githubusercontent.com/sariola/fwj/refs/heads/main/rubrics/subquery-decomp.jinja";
+pub const DATA_URL: &str =
+    "https://raw.githubusercontent.com/sariola/fwj/refs/heads/main/data/subquery-data.json";
+pub const RUBRIC_URL: &str =
+    "https://raw.githubusercontent.com/sariola/fwj/refs/heads/main/rubrics/subquery-decomp.jinja";
 
 lazy_static! {
     pub static ref FILE_LOCKS: Mutex<HashMap<String, Mutex<()>>> = Mutex::new(HashMap::new());
@@ -25,8 +28,7 @@ lazy_static! {
     pub static ref FEEDBACK_REGEX: Regex = Regex::new(FEEDBACK_REGEX_PATTERN).unwrap();
 }
 
-
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum AppError {
     #[error("CSV write error: {0}")]
     CsvWriteError(String),
@@ -49,7 +51,7 @@ pub enum AppError {
     #[error("File read error: {0}")]
     FileReadError(String),
     #[error("File write error: {0}")]
-    FileWriteError(String), // Add this line
+    FileWriteError(String),
     #[error("HTTP request error: {0}")]
     HttpError(#[from] reqwest::Error),
     #[error("YAML parsing error: {0}")]
@@ -70,6 +72,8 @@ pub enum AppError {
     CsvParseError(String),
     #[error("Encoding error: {0}")]
     EncodingError(String),
+    #[error("Anyhow error: {0}")]
+    AnyhowError(#[from] anyhow::Error),
 }
 
 #[derive(Debug, Deserialize)]
@@ -86,7 +90,10 @@ pub struct Config {
     pub data_dir: String,
 }
 
-pub fn default_llamafile_url() -> String { LLAMAFILE_URL.to_string() }
+pub fn default_llamafile_url() -> String {
+    LLAMAFILE_URL.to_string()
+}
+
 pub fn default_cache_dir() -> String {
     dirs::cache_dir()
         .map(|cache| cache.join("fwj"))
@@ -104,8 +111,14 @@ pub fn default_cache_dir() -> String {
         .to_string_lossy()
         .into_owned()
 }
-pub fn default_rubrics_dir() -> String { RUBRICS_DIR.to_string() }
-pub fn default_data_dir() -> String { DATA_DIR.to_string() }
+
+pub fn default_rubrics_dir() -> String {
+    RUBRICS_DIR.to_string()
+}
+
+pub fn default_data_dir() -> String {
+    DATA_DIR.to_string()
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TaskConfig {

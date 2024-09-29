@@ -1,57 +1,65 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
 
+mod cli;
+mod download;
+mod models;
 #[cfg(test)]
 mod tests;
-mod models;
-mod download;
-mod cli;
 
-use models::{AppError, Config, TaskConfig, IoItem};
-use models::{FILE_LOCKS, SCORE_REGEX, RUBRICS_DIR, MAX_RETRIES};
+use models::{AppError, Config, IoItem, TaskConfig};
 use models::{DATA_URL, RUBRIC_URL};
+use models::{FILE_LOCKS, MAX_RETRIES, RUBRICS_DIR, SCORE_REGEX};
 use std::path::Path;
 
-use crate::download::{download_flow_judge_llamafile, download_file};
+use crate::download::{download_file, download_flow_judge_llamafile};
 
+use crate::cli::Args;
+use clap::CommandFactory;
+use clap_complete::generate;
+use console::style;
+use csv::{ReaderBuilder, WriterBuilder};
+use env_logger::Env;
+use futures::stream::{self, StreamExt};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::{debug, error, info, warn};
 use minijinja::{context, Environment};
+use mistralrs::{IsqType, TextMessageRole, TextMessages, TextModelBuilder, PagedAttentionMetaBuilder, MemoryGpuConfig};
+use regex::Regex;
 use serde_json::{self, Value};
+use std::fs::File;
+use std::io;
+use std::io::{BufReader, BufWriter, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::str::from_utf8;
+use std::sync::Arc;
 use std::thread;
+use std::time::Instant;
 use tokio::fs;
 use tokio::sync::Mutex;
-use regex::Regex;
-use env_logger::Env;
-use futures::stream::{self, StreamExt};
-use console::{style};
-use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
-use std::time::Instant;
-use std::sync::Arc;
-use std::fs::File;
-use csv::{WriterBuilder, ReaderBuilder};
-use std::io::{Write, BufReader, BufWriter};
-use std::str::from_utf8;
-use crate::cli::Args;
-use clap_complete::{generate};
-use std::io;
-use clap::CommandFactory;
+use anyhow::Result;
 
 impl Config {
     pub fn from_file(path: &str) -> Result<Self, AppError> {
-        let config_str = std::fs::read_to_string(path)
-            .map_err(|e| AppError::ConfigError(format!("Failed to read config file {}: {}", path, e)))?;
+        let config_str = std::fs::read_to_string(path).map_err(|e| {
+            AppError::ConfigError(format!("Failed to read config file {}: {}", path, e))
+        })?;
 
         let config: Config = if path.ends_with(".yaml") || path.ends_with(".yml") {
-            serde_yml::from_str(&config_str)
-                .map_err(|e| AppError::ConfigError(format!("Failed to parse YAML config file {}: {}", path, e)))?
+            serde_yml::from_str(&config_str).map_err(|e| {
+                AppError::ConfigError(format!("Failed to parse YAML config file {}: {}", path, e))
+            })?
         } else if path.ends_with(".json") {
-            serde_json::from_str(&config_str)
-                .map_err(|e| AppError::ConfigError(format!("Failed to parse JSON config file {}: {}", path, e)))?
+            serde_json::from_str(&config_str).map_err(|e| {
+                AppError::ConfigError(format!("Failed to parse JSON config file {}: {}", path, e))
+            })?
         } else {
-            return Err(AppError::ConfigError(format!("Unsupported config file format: {}", path)));
+            return Err(AppError::ConfigError(format!(
+                "Unsupported config file format: {}",
+                path
+            )));
         };
 
         Ok(config)
@@ -59,7 +67,10 @@ impl Config {
 }
 
 fn display_last_result(result: &str) {
-    println!("\n{}", style("Last Processed Result:\n\n").bold().underlined());
+    println!(
+        "\n{}",
+        style("Last Processed Result:\n\n").bold().underlined()
+    );
 
     if result.trim().is_empty() {
         println!("{}", style("No result to display.").yellow());
@@ -70,6 +81,36 @@ fn display_last_result(result: &str) {
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
+    let model = TextModelBuilder::new("flowaicom/Flow-Judge-v0.1")
+        .with_isq(IsqType::Q8_0)
+        .with_logging()
+        .with_paged_attn(|| {
+            PagedAttentionMetaBuilder::default()
+                .with_block_size(32)
+                .with_gpu_memory(MemoryGpuConfig::ContextSize(1024))
+                .build()
+        })?
+        .build()
+        .await?;  // This line now returns the Model or propagates the error
+
+    let messages = TextMessages::new()
+        .add_message(
+            TextMessageRole::System,
+            "You are an AI agent with a specialty in programming.",
+        )
+        .add_message(
+            TextMessageRole::User,
+            "Hello! How are you? Please write generic binary search function in Rust.",
+        );
+
+    let response = model.send_chat_request(messages).await?;
+
+    println!("{}", response.choices[0].message.content.as_ref().unwrap());
+    dbg!(
+        response.usage.avg_prompt_tok_per_sec,
+        response.usage.avg_compl_tok_per_sec
+    );
+
     let args = cli::parse_args();
 
     if let Some(cli::Commands::GenAutoCompletions { shell, output }) = args.command {
@@ -96,13 +137,18 @@ async fn main() -> Result<(), AppError> {
 
         if let Some(path) = output {
             File::create(&path)
-                .map_err(|e| AppError::FileWriteError(format!("Failed to create file '{}': {}", path, e)))?
+                .map_err(|e| {
+                    AppError::FileWriteError(format!("Failed to create file '{}': {}", path, e))
+                })?
                 .write_all(&buf)
-                .map_err(|e| AppError::FileWriteError(format!("Failed to write to file '{}': {}", path, e)))?;
+                .map_err(|e| {
+                    AppError::FileWriteError(format!("Failed to write to file '{}': {}", path, e))
+                })?;
             println!("Completions written to {}", path);
         } else {
-            io::stdout().write_all(&buf)
-                .map_err(|e| AppError::FileWriteError(format!("Failed to write to stdout: {}", e)))?;
+            io::stdout().write_all(&buf).map_err(|e| {
+                AppError::FileWriteError(format!("Failed to write to stdout: {}", e))
+            })?;
         }
 
         return Ok(());
@@ -111,7 +157,7 @@ async fn main() -> Result<(), AppError> {
     // Check if both verbose and log-level are specified
     if args.verbose && args.log_level != log::LevelFilter::Info {
         return Err(AppError::ConfigError(
-            "Cannot use both --verbose and --log-level options simultaneously".to_string()
+            "Cannot use both --verbose and --log-level options simultaneously".to_string(),
         ));
     }
 
@@ -171,7 +217,9 @@ async fn main() -> Result<(), AppError> {
 
     // Ensure we have tasks to process
     if config.tasks.is_empty() {
-        return Err(AppError::ConfigError("No tasks found in configuration or CLI arguments".to_string()));
+        return Err(AppError::ConfigError(
+            "No tasks found in configuration or CLI arguments".to_string(),
+        ));
     }
 
     // Download the llamafile and wait for it to complete
@@ -185,15 +233,24 @@ async fn main() -> Result<(), AppError> {
     // Process tasks
     info!("Starting task processing");
     for task_config in &config.tasks {
-        info!("Processing task with rubric: {}", task_config.rubric_template);
+        info!(
+            "Processing task with rubric: {}",
+            task_config.rubric_template
+        );
         match process_task(task_config, &config, args.batch_size, &args).await {
             Ok((failures, result)) => {
-                info!("Task with rubric '{}' processed successfully", task_config.rubric_template);
+                info!(
+                    "Task with rubric '{}' processed successfully",
+                    task_config.rubric_template
+                );
                 parsing_failures += failures;
                 last_result = result;
             }
             Err(e) => {
-                error!("Failed to process task with rubric '{}': {}", task_config.rubric_template, e);
+                error!(
+                    "Failed to process task with rubric '{}': {}",
+                    task_config.rubric_template, e
+                );
                 return Err(e);
             }
         }
@@ -212,16 +269,31 @@ async fn main() -> Result<(), AppError> {
     if parsing_failures == 0 {
         println!("\n{}", style("All items processed successfully.").yellow());
     } else if parsing_failures == 1 {
-        println!("\n{}", style(format!("Processing completed with 1 parsing failure.")).yellow());
+        println!(
+            "\n{}",
+            style(format!("Processing completed with 1 parsing failure.")).yellow()
+        );
     } else {
-        println!("\n{}", style(format!("Processing completed with {} parsing failures.", parsing_failures)).red());
+        println!(
+            "\n{}",
+            style(format!(
+                "Processing completed with {} parsing failures.",
+                parsing_failures
+            ))
+            .red()
+        );
     }
 
     info!("All tasks processed. Application completed.");
     Ok(())
 }
 
-async fn process_task(task_config: &TaskConfig, config: &Config, batch_size: usize, args: &Args) -> Result<(u32, String), AppError> {
+async fn process_task(
+    task_config: &TaskConfig,
+    config: &Config,
+    batch_size: usize,
+    args: &Args,
+) -> Result<(u32, String), AppError> {
     let data = fs::read_to_string(&task_config.data).await?;
 
     if data.trim().is_empty() {
@@ -233,14 +305,29 @@ async fn process_task(task_config: &TaskConfig, config: &Config, batch_size: usi
     let mut items: Vec<IoItem> = match file_format.as_str() {
         "json" => read_json(&task_config.data)?,
         "csv" => read_csv(&task_config.data)?,
-        _ => return Err(AppError::ConfigError(format!("Unsupported file format: {}", file_format))),
+        _ => {
+            return Err(AppError::ConfigError(format!(
+                "Unsupported file format: {}",
+                file_format
+            )))
+        }
     };
 
     let total_items = items.len();
     let concurrent_batch_size = batch_size;
 
-    println!("\n{}", style(format!("Processing: {} entries", total_items)).yellow().bold());
-    println!("{}", style(format!("Concurrent batch size: {}", concurrent_batch_size)).yellow().italic());
+    println!(
+        "\n{}",
+        style(format!("Processing: {} entries", total_items))
+            .yellow()
+            .bold()
+    );
+    println!(
+        "{}",
+        style(format!("Concurrent batch size: {}", concurrent_batch_size))
+            .yellow()
+            .italic()
+    );
 
     println!(); // Add an empty line for spacing
 
@@ -250,18 +337,31 @@ async fn process_task(task_config: &TaskConfig, config: &Config, batch_size: usi
     let item_progress_bars: Vec<ProgressBar> = (0..concurrent_batch_size.min(total_items))
         .map(|i| {
             let pb = multi_progress.add(ProgressBar::new(1));
-            pb.set_style(ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] {msg}")
-                .unwrap()
-                .with_key("elapsed_precise", |state: &indicatif::ProgressState, w: &mut dyn std::fmt::Write| {
-                    write!(w, "{:02}:{:02}:{:03}",
-                        state.elapsed().as_secs() / 60,
-                        state.elapsed().as_secs() % 60,
-                        state.elapsed().subsec_millis()
-                    ).unwrap();
-                }));
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template("{spinner:.green} [{elapsed_precise}] {msg}")
+                    .unwrap()
+                    .with_key(
+                        "elapsed_precise",
+                        |state: &indicatif::ProgressState, w: &mut dyn std::fmt::Write| {
+                            write!(
+                                w,
+                                "{:02}:{:02}:{:03}",
+                                state.elapsed().as_secs() / 60,
+                                state.elapsed().as_secs() % 60,
+                                state.elapsed().subsec_millis()
+                            )
+                            .unwrap();
+                        },
+                    ),
+            );
             pb.enable_steady_tick(std::time::Duration::from_millis(100));
-            pb.set_message(style(format!("Item {} - Waiting", i + 1)).dim().bold().to_string());
+            pb.set_message(
+                style(format!("Item {} - Waiting", i + 1))
+                    .dim()
+                    .bold()
+                    .to_string(),
+            );
             pb
         })
         .collect();
@@ -306,7 +406,12 @@ async fn process_task(task_config: &TaskConfig, config: &Config, batch_size: usi
         .map(|(index, item)| {
             let rubric_clone = rubric.clone();
             let item_progress = item_progress_bars[index % concurrent_batch_size].clone();
-            item_progress.set_message(style(format!("Item {}/{} - Processing", index + 1, total_items)).dim().bold().to_string());
+            item_progress.set_message(
+                style(format!("Item {}/{} - Processing", index + 1, total_items))
+                    .dim()
+                    .bold()
+                    .to_string(),
+            );
             let main_progress_bar = main_progress_bar.clone();
 
             // FIXME: to be implemented
@@ -323,10 +428,20 @@ async fn process_task(task_config: &TaskConfig, config: &Config, batch_size: usi
                 let populated_template = populate_template(&rubric_clone, &context)?;
 
                 // Execute llamafile with the populated template
-                let llamafile_output = execute_llamafile_with_retries(&populated_template, MAX_RETRIES, &config.cache_dir, args).await?;
+                let llamafile_output = execute_llamafile_with_retries(
+                    &populated_template,
+                    MAX_RETRIES,
+                    &config.cache_dir,
+                    args,
+                )
+                .await?;
 
                 // Log the llamafile output for debugging
-                debug!("Llamafile output for item {}: {}", index + 1, llamafile_output);
+                debug!(
+                    "Llamafile output for item {}: {}",
+                    index + 1,
+                    llamafile_output
+                );
 
                 item.feedback = Some(llamafile_output.trim().to_string());
 
@@ -351,12 +466,13 @@ async fn process_task(task_config: &TaskConfig, config: &Config, batch_size: usi
                     }
                 }
 
-                item_progress.finish_with_message(
-                    format!("{} {}",
-                        style("✅").green(),
-                        style(format!("Item {}/{} - Completed", index + 1, total_items)).dim().bold()
-                    )
-                );
+                item_progress.finish_with_message(format!(
+                    "{} {}",
+                    style("✅").green(),
+                    style(format!("Item {}/{} - Completed", index + 1, total_items))
+                        .dim()
+                        .bold()
+                ));
                 main_progress_bar.inc(1);
                 *last_result.lock().await = llamafile_output;
 
@@ -389,20 +505,34 @@ async fn process_task(task_config: &TaskConfig, config: &Config, batch_size: usi
     match file_format.as_str() {
         "json" => write_json(&items, &task_config.data)?,
         "csv" => write_csv(&items, &task_config.data)?,
-        _ => return Err(AppError::ConfigError(format!("Unsupported file format for saving: {}", file_format))),
+        _ => {
+            return Err(AppError::ConfigError(format!(
+                "Unsupported file format for saving: {}",
+                file_format
+            )))
+        }
     }
 
     println!("\n\n{}", style("Task Summary:").yellow().bold());
     println!("┌─────────────────┬────────────────────────────────┐");
     println!("│ Metric          │ Value                          │");
     println!("├─────────────────┼────────────────────────────────┤");
-    println!("│ Time taken      │ {:<30} │", format!("{:.2} seconds", elapsed.as_secs_f64()));
-    println!("│ Processed       │ {:<30} │", format!("{} items", total_items - parsing_failures as usize));
+    println!(
+        "│ Time taken      │ {:<30} │",
+        format!("{:.2} seconds", elapsed.as_secs_f64())
+    );
+    println!(
+        "│ Processed       │ {:<30} │",
+        format!("{} items", total_items - parsing_failures as usize)
+    );
     println!("│ Results saved in│ {:<30} │", task_config.data);
     println!("└─────────────────┴────────────────────────────────┘");
 
     if parsing_failures > 0 {
-        println!("{}", style(format!("Failed items: {}", parsing_failures)).yellow());
+        println!(
+            "{}",
+            style(format!("Failed items: {}", parsing_failures)).yellow()
+        );
     }
 
     Ok((parsing_failures, last_result))
@@ -411,8 +541,14 @@ async fn process_task(task_config: &TaskConfig, config: &Config, batch_size: usi
 async fn load_rubric(rubric_template: &str) -> Result<String, AppError> {
     if Path::new(rubric_template).exists() {
         // If it's a file path, read the file
-        let content = tokio::fs::read_to_string(rubric_template).await
-            .map_err(|e| AppError::FileReadError(format!("Failed to read rubric file '{}': {}", rubric_template, e)))?;
+        let content = tokio::fs::read_to_string(rubric_template)
+            .await
+            .map_err(|e| {
+                AppError::FileReadError(format!(
+                    "Failed to read rubric file '{}': {}",
+                    rubric_template, e
+                ))
+            })?;
         Ok(normalize_line_endings(&content))
     } else {
         // If it's not a file path, assume it's the content itself
@@ -433,8 +569,9 @@ pub async fn update_json_file(
     let _guard = file_lock.lock().await;
 
     let file_content = fs::read(file_path).await?;
-    let file_content = String::from_utf8(file_content)
-        .map_err(|e| AppError::CustomError(format!("Failed to decode file content as UTF-8: {}", e)))?;
+    let file_content = String::from_utf8(file_content).map_err(|e| {
+        AppError::CustomError(format!("Failed to decode file content as UTF-8: {}", e))
+    })?;
 
     let mut json: Value = serde_json::from_str(&file_content)?;
 
@@ -443,13 +580,19 @@ pub async fn update_json_file(
             if let Some(obj) = item.as_object_mut() {
                 obj.insert(field_name.to_string(), value);
             } else {
-                return Err(AppError::JsonParseError("Failed to parse JSON data".to_string()));
+                return Err(AppError::JsonParseError(
+                    "Failed to parse JSON data".to_string(),
+                ));
             }
         } else {
-            return Err(AppError::JsonParseError("Failed to parse JSON data".to_string()));
+            return Err(AppError::JsonParseError(
+                "Failed to parse JSON data".to_string(),
+            ));
         }
     } else {
-        return Err(AppError::JsonParseError("Failed to parse JSON data".to_string()));
+        return Err(AppError::JsonParseError(
+            "Failed to parse JSON data".to_string(),
+        ));
     }
 
     let updated_content = serde_json::to_string_pretty(&json)?;
@@ -474,10 +617,14 @@ pub async fn execute_llamafile_with_retries(
     debug!("Llamafile permissions: {:o}", metadata.permissions().mode());
     debug!("Llamafile full path: {:?}", llamafile_path);
 
-    let thread_count = args.thread_count.unwrap_or_else(|| thread::available_parallelism().map(|p| p.get()).unwrap_or(1));
+    let thread_count = args.thread_count.unwrap_or_else(|| {
+        thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(1)
+    });
 
     let mut llamafile_command = format!(
-        "{} -c {} -ngl {} {} --temp {} -n {} -t {} -p \"{}\"",
+        "{} -c {} -ngl {} {} --nocompile --simple-io --temp {} -n {} -t {} -p \"{}\"",
         llamafile_path.display(),
         args.context_size,
         args.gpu_layers,
@@ -563,8 +710,10 @@ pub fn extract_input_names_from_rubric(rubric: &str) -> Vec<String> {
     input_names
 }
 
-
-pub fn populate_template(rubric: &str, context: &minijinja::value::Value) -> Result<String, AppError> {
+pub fn populate_template(
+    rubric: &str,
+    context: &minijinja::value::Value,
+) -> Result<String, AppError> {
     let mut env = Environment::new();
     env.add_template("rubric", rubric)?;
 
@@ -574,11 +723,13 @@ pub fn populate_template(rubric: &str, context: &minijinja::value::Value) -> Res
 
 fn save_last_result(result: &str, cache_dir: &str) -> Result<(), AppError> {
     let result_file_path = PathBuf::from(cache_dir).join("last_result.txt");
-    let mut file = File::create(&result_file_path)
-        .map_err(|e| AppError::FileWriteError(format!("Failed to create last result file: {}", e)))?;
+    let mut file = File::create(&result_file_path).map_err(|e| {
+        AppError::FileWriteError(format!("Failed to create last result file: {}", e))
+    })?;
 
-    file.write_all(result.as_bytes())
-        .map_err(|e| AppError::FileWriteError(format!("Failed to write last result to file: {}", e)))?;
+    file.write_all(result.as_bytes()).map_err(|e| {
+        AppError::FileWriteError(format!("Failed to write last result to file: {}", e))
+    })?;
 
     Ok(())
 }
@@ -599,42 +750,48 @@ fn detect_file_type(file_path: &str) -> Result<String, AppError> {
     match path.extension().and_then(|s| s.to_str()) {
         Some("json") => Ok("json".to_string()),
         Some("csv") => Ok("csv".to_string()),
-        Some(ext) => Err(AppError::ConfigError(format!("Unsupported file type: {}", ext))),
+        Some(ext) => Err(AppError::ConfigError(format!(
+            "Unsupported file type: {}",
+            ext
+        ))),
         None => Err(AppError::ConfigError("File has no extension".to_string())),
     }
 }
 
 fn write_csv(items: &[IoItem], file_path: &str) -> Result<(), AppError> {
-    let file = File::create(file_path)
-        .map_err(|e| AppError::FileWriteError(format!("Failed to create file '{}': {}", file_path, e)))?;
+    let file = File::create(file_path).map_err(|e| {
+        AppError::FileWriteError(format!("Failed to create file '{}': {}", file_path, e))
+    })?;
 
-    let mut writer = WriterBuilder::new()
-        .from_writer(file);
+    let mut writer = WriterBuilder::new().from_writer(file);
 
     for item in items {
-        writer.serialize(item)
+        writer
+            .serialize(item)
             .map_err(|e| AppError::CsvWriteError(format!("Failed to write CSV record: {}", e)))?;
     }
 
-    writer.flush()
+    writer
+        .flush()
         .map_err(|e| AppError::FileWriteError(format!("Failed to flush CSV writer: {}", e)))?;
     Ok(())
 }
 
 fn read_csv(file_path: &str) -> Result<Vec<IoItem>, AppError> {
-    let file = File::open(file_path)
-        .map_err(|e| AppError::FileReadError(format!("Failed to open file '{}': {}", file_path, e)))?;
+    let file = File::open(file_path).map_err(|e| {
+        AppError::FileReadError(format!("Failed to open file '{}': {}", file_path, e))
+    })?;
 
-    let mut reader = ReaderBuilder::new()
-        .from_reader(file);
+    let mut reader = ReaderBuilder::new().from_reader(file);
 
     let items: Result<Vec<IoItem>, _> = reader.deserialize().collect();
     items.map_err(|e| AppError::CsvReadError(format!("Failed to read CSV: {}", e)))
 }
 
 fn write_json(items: &[IoItem], file_path: &str) -> Result<(), AppError> {
-    let file = File::create(file_path)
-        .map_err(|e| AppError::FileWriteError(format!("Failed to create file '{}': {}", file_path, e)))?;
+    let file = File::create(file_path).map_err(|e| {
+        AppError::FileWriteError(format!("Failed to create file '{}': {}", file_path, e))
+    })?;
     let buf_writer = BufWriter::new(file);
 
     serde_json::to_writer_pretty(buf_writer, items)
@@ -644,22 +801,26 @@ fn write_json(items: &[IoItem], file_path: &str) -> Result<(), AppError> {
 }
 
 fn read_json(file_path: &str) -> Result<Vec<IoItem>, AppError> {
-    let file = File::open(file_path)
-        .map_err(|e| AppError::FileReadError(format!("Failed to open file '{}': {}", file_path, e)))?;
+    let file = File::open(file_path).map_err(|e| {
+        AppError::FileReadError(format!("Failed to open file '{}': {}", file_path, e))
+    })?;
     let buf_reader = BufReader::new(file);
 
     let items: Vec<IoItem> = serde_json::from_reader(buf_reader)
         .map_err(|e| AppError::JsonParseError(format!("Failed to parse JSON: {}", e)))?;
 
     // Ensure UTF-8 validity for all string fields
-    items.into_iter().map(|item| {
-        Ok(IoItem {
-            input: ensure_utf8(&item.input)?,
-            output: ensure_utf8(&item.output)?,
-            feedback: item.feedback.map(|f| ensure_utf8(&f)).transpose()?,
-            score: item.score,
+    items
+        .into_iter()
+        .map(|item| {
+            Ok(IoItem {
+                input: ensure_utf8(&item.input)?,
+                output: ensure_utf8(&item.output)?,
+                feedback: item.feedback.map(|f| ensure_utf8(&f)).transpose()?,
+                score: item.score,
+            })
         })
-    }).collect()
+        .collect()
 }
 
 fn ensure_utf8(s: &str) -> Result<String, AppError> {
@@ -673,14 +834,19 @@ async fn validate_llamafile_kvargs(llamafile_path: &Path, args: &str) -> Result<
         .arg("--help")
         .output()
         .await
-        .map_err(|e| AppError::CommandExecutionError(format!("Failed to execute llamafile: {}", e)))?;
+        .map_err(|e| {
+            AppError::CommandExecutionError(format!("Failed to execute llamafile: {}", e))
+        })?;
 
     let help_text = String::from_utf8_lossy(&output.stdout);
 
     for arg_pair in args.split(',') {
         if let Some((key, _)) = arg_pair.split_once('=') {
             if !help_text.contains(&format!("--{}", key)) {
-                return Err(AppError::ConfigError(format!("Invalid llamafile argument: --{}", key)));
+                return Err(AppError::ConfigError(format!(
+                    "Invalid llamafile argument: --{}",
+                    key
+                )));
             }
         }
     }

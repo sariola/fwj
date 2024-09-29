@@ -22,13 +22,18 @@
     fenix,
     flake-parts,
     ...
-  }:
-    flake-parts.lib.mkFlake {inherit inputs;} {
-      systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
+  }: let
+    supportedSystems = ["x86_64-linux"]; #[ "x86_64-darwin" "aarch64-darwin"];
+  in
+    flake-parts.lib.mkFlake {inherit inputs;}
+    {
       imports = [];
+
+      systems = supportedSystems;
+
       perSystem = {system, ...}: let
         pkgs = import nixpkgs {
-          inherit system;
+          system = "x86_64-linux";
           config = {
             allowUnfree = true;
             cudaSupport = true;
@@ -36,6 +41,9 @@
             acceptLicense = true;
           };
         };
+
+        pkgsStatic = pkgs.pkgsStatic;
+
         defaultDeps = [
           pkgs.ruff
           pkgs.nodejs
@@ -43,6 +51,7 @@
           pkgs.jq
           pkgs.uv
         ];
+
         toolchain = with fenix.packages.${system};
           combine [
             complete.cargo
@@ -81,152 +90,115 @@
             ;
           kernel = kernel;
         };
-        nvidia-p2p = nvidia-x11.p2p;
-        cudaDeps = with pkgs; [
-          autoconf
-          cmake # for triton build from src
-          cudaPackages_12_1.cudatoolkit
-          curl
-          file
-          freeglut
-          gcc
-          git
-          gitRepo
-          gnumake
-          gnupg
-          gperf
-          libaio
-          libGL
-          libGLU
-          libselinux
-          libxml2
-          m4
-          ncurses5
-          nvidia-p2p
-          pkg-config # for triton build from src
-          pkgs.acl
-          pkgs.attr
-          pkgs.bzip2
-          pkgs.cmake
-          pkgs.cudaPackages_12_1.cuda_cudart
-          pkgs.cudaPackages_12_1.cuda_cudart.static
-          pkgs.cudaPackages_12_1.cudatoolkit
-          pkgs.cudaPackages_12_1.cudnn
-          pkgs.cudaPackages_12_1.nccl
-          pkgs.cudaPackages_12_1.nccl-tests
-          pkgs.cudaPackages_12_1.nvidia_fs
-          pkgs.curl
-          pkgs.expat
-          pkgs.file
-          pkgs.fuse3
-          pkgs.glibc
-          pkgs.glibc_multi
-          pkgs.icu
-          pkgs.libaio
-          pkgs.libsodium
-          pkgs.libssh
-          pkgs.libxml2
-          pkgs.llvm_18
-          pkgs.nss
-          pkgs.openssl
-          pkgs.pkg-config
-          pkgs.python311Packages.triton
-          pkgs.pythonManylinuxPackages.manylinux2014Package
-          pkgs.stdenv.cc.cc
-          pkgs.systemd
-          pkgs.util-linux
-          pkgs.vulkan-headers
-          pkgs.vulkan-loader
-          pkgs.vulkan-tools
-          pkgs.xorg.libX11
-          pkgs.xz
-          pkgs.zlib
-          pkgs.zstd
-          procps
-          stdenv.cc
-          gcc
-          unzip
-          util-linux
-          wget
-          xorg.libICE
-          xorg.libSM
-          xorg.libX11
-          xorg.libXext
-          xorg.libXi
-          xorg.libXmu
-          xorg.libXrandr
-          xorg.libXrender
-          xorg.libXv
-          binutils
-          zlib
 
-          # rust deps
+        nvidia-p2p = nvidia-x11.p2p;
+
+        #   # darwinBuildInputs =
+        #   #   with darwin.apple_sdk.frameworks;
+        #   #   [
+        #   #     Accelerate
+        #   #     CoreVideo
+        #   #     CoreGraphics
+        #   #   ]
+        #   #   ++ lib.optionals metalSupport [
+        #   #     MetalKit
+        #   #     MetalPerformanceShaders
+        #   #   ];
+        #   # ++ lib.optionals mklSupport [ mkl ]
+        #   # ++ lib.optionals stdenv.hostPlatform.isDarwin darwinBuildInputs;
+
+        cudaDeps = with pkgs; [
+          nvidia-p2p
+          cudaPackages_12_4.cuda_cudart
+          cudaPackages_12_4.cuda_cudart.static
+          cudaPackages_12_4.cudatoolkit
+          cudaPackages_12_4.cudnn
+          cudaPackages_12_4.nccl
+          cudaPackages_12_4.nccl-tests
+          cudaPackages_12_4.nvidia_fs
+          cudaPackages_12_4.cuda_nvcc
+          cudaPackages_12_4.cuda_cudart
+          cudaPackages_12_4.cuda_nvrtc
+          cudaPackages_12_4.libcublas
+          cudaPackages_12_4.libcurand
+        ];
+
+        otherDeps = with pkgs; [
           zig
           toolchain
-          glib
-          glibc
-          gcc
           pkg-config
-          clang
-          llvmPackages_19.bintools
-          llvmPackages_19.stdenv
-          lld_19
-          llvm_18 # for triton build from src
-          libiconv
           openssl
           openssl.dev
-          util-linux
-          libcxx
+          pkgsStatic.oniguruma
+          musl
+          libiconv
         ];
-        NIX_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath cudaDeps;
+        onigurumaStatic = pkgsStatic.oniguruma;
       in {
         _module.args = {inherit pkgs;};
-        legacyPackages = pkgs;
         devShells = {
           default = (pkgs.mkShell.override {stdenv = pkgs.gccStdenv;}) {
             name = "fwj-env";
-            buildInputs =
-              [
-                pkgs.python311Packages.virtualenv
-                pkgs.python311Packages.venvShellHook
-                pkgs.pkg-config # Add pkg-config to buildInputs
-                pkgs.openssl # Add OpenSSL explicitly
-                pkgs.libiconv
-                pkgs.openssl.dev
-              ]
-              ++ defaultDeps
-              ++ cudaDeps;
-            packages = defaultDeps ++ cudaDeps;
-            NIX_LD_LIBRARY_PATH = NIX_LD_LIBRARY_PATH;
-            LD_LIBRARY_PATH = NIX_LD_LIBRARY_PATH;
+            buildInputs = otherDeps ++ defaultDeps ++ cudaDeps;
+            packages = otherDeps ++ defaultDeps ++ cudaDeps;
             HF_HOME = "/shelf/hf_home";
             HF_TOKEN = builtins.getEnv "HF_TOKEN";
-            NVCC_APPEND_FLAGS = "-L${pkgs.cudaPackages_12_1.cuda_cudart.static}/lib";
-            TORCH_CUDA_ARCH_LIST = "8.9"; # support for 4090 not to compile useless compatibilities
-            TRITON_LIBCUDA_PATH = "${nvidia-p2p}/lib/libcuda.so";
-            NIX_LD = pkgs.lib.fileContents "${pkgs.stdenv.cc}/nix-support/dynamic-linker";
-            CUDA_PATH = "${pkgs.cudaPackages_12_1.cudatoolkit}";
+
+            # cuda old
+            CUDA_PATH = "${pkgs.cudaPackages_12_4.cudatoolkit}";
             TORCH_USE_CUDA_DSA = "1";
             CUDA_VISIBLE_DEVICES = "0,1,2";
+            TORCH_CUDA_ARCH_LIST = "8.9"; # support for 4090 not to compile useless compatibilities
+            TRITON_LIBCUDA_PATH = "${nvidia-p2p}/lib/libcuda.so";
 
-            # Add pkg-config related environment variables
-            PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" (defaultDeps ++ cudaDeps);
+            NVCC_CCBIN = "${pkgs.gcc}/bin";
+
+            # cuda new
+            RUSTONIG_SYSTEM_LIBONIG = true;
+            # CUDA_COMPUTE_CAP = "8.9";
+            CUDA_TOOLKIT_ROOT_DIR = pkgs.lib.getDev pkgs.cudaPackages_12_4.cuda_cudart;
+
+            NVCC_PREPEND_FLAGS = [
+              "-I${pkgs.lib.getDev pkgs.cudaPackages_12_4.cuda_cudart}/include"
+              "-I${pkgs.lib.getDev pkgs.cudaPackages_12_4.cudnn}/include"
+              "-I${pkgs.lib.getDev pkgs.cudaPackages_12_4.cuda_cccl}/include"
+              "-I${pkgs.lib.getDev nvidia-p2p}/include"
+            ];
+            NVCC_APPEND_FLAGS = [
+              "-L${pkgs.cudaPackages_12_4.cuda_cudart.static}/lib"
+              "-L${pkgs.cudaPackages_12_4.cudnn}/lib"
+              "-L${pkgs.cudaPackages_12_4.nccl}/lib"
+              "-L${pkgs.cudaPackages_12_4.nvidia_fs}/lib"
+              "-L${pkgs.cudaPackages_12_4.cuda_cudart}/lib"
+              "-L${pkgs.cudaPackages_12_4.cudatoolkit}/lib"
+              "-L${nvidia-p2p}/lib"
+              "-L${onigurumaStatic}/lib"
+            ];
+
+            PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" (defaultDeps ++ cudaDeps ++ otherDeps);
             PKG_CONFIG_SYSROOT_DIR = "/";
+            PKG_CONFIG = "${pkgs.pkg-config}/bin/pkg-config";
+            RUSTFLAGS = [
+              "-C target-feature=+crt-static"
+              "-L${onigurumaStatic}/lib"
+              "-L${pkgs.cudaPackages_12_4.cuda_cudart}/lib"
+              "-L${nvidia-p2p}/lib"
+              "-L/run/opengl-drivers/lib"
+              "-L/run/opengl-drivers/lib64"
+              "-L/run/opengl-drivers/lib/nvidia"
+              "-L/run/opengl-drivers/lib64/nvidia"
+            ];
+            LD_LIBRARY_PATH = "/run/opengl-drivers/lib:${onigurumaStatic}/lib:${pkgs.cudaPackages_12_4.cuda_cudart}:${pkgs.lib.makeLibraryPath (cudaDeps ++ otherDeps)}/lib";
 
             shellHook = ''
               set -eu
-              export LD_LIBRARY_PATH=$NIX_LD_LIBRARY_PATH
               export TAILSCALE_IP=$(tailscale ip -4 2>/dev/null)
               export HF_TOKEN=${builtins.getEnv "HF_TOKEN"}
-              export CUDA_PATH="${pkgs.cudaPackages_12_1.cudatoolkit}"
+              export CUDA_PATH="${pkgs.cudaPackages_12_4.cudatoolkit}"
               export HF_HOME="/shelf/hf_home"
               export OMP_NUM_THREADS=32
-
-              # Set up pkg-config wrapper for cross-compilation
-              export PKG_CONFIG="${pkgs.pkg-config}/bin/pkg-config"
-              export PKG_CONFIG_PATH="$PKG_CONFIG_PATH"
-              export PKG_CONFIG_SYSROOT_DIR="$PKG_CONFIG_SYSROOT_DIR"
             '';
+            # :${pkgs.glibc}/lib"
           };
         };
       };
